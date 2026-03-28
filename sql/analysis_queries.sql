@@ -1,0 +1,2 @@
+-- Placeholder for ad hoc MVP analysis queries.
+-- Add exploratory Postgres queries here once the schema and views exist.

@@ -1,0 +1,2 @@
+-- Placeholder for the future Postgres schema.
+-- Define MVP tables for daily check-ins and related analytics here later.

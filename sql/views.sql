@@ -1,0 +1,2 @@
+-- Placeholder for future Postgres views.
+-- Add derived reporting views here after the core MVP schema is defined.
