@@ -12,7 +12,7 @@ Minimal MVP scaffold for a SQL + Python + Streamlit habit and focus analysis pro
 ## Structure
 
 - `app/` contains the Streamlit entrypoint.
-- `sql/` contains schema, views, and analysis query placeholders.
+- `sql/` contains schema, views, and starter analytical queries for the MVP.
 - `src/` contains lightweight Python modules for DB access, ingestion, analytics, and utilities.
 - `data/` contains sample input data.
 - `notebooks/` contains an exploration notebook stub.
