@@ -1,3 +1,3 @@
-check_in_date,caffeine_mg,exercise_minutes,focus_score,energy_score,notes
-2026-03-25,180,30,8,7,Placeholder daily check-in sample
-2026-03-26,95,0,5,6,Placeholder daily check-in sample
+check_in_date,focus_score,energy_score,notes
+2026-03-25,8,7,Strong focus day with steady energy
+2026-03-26,5,6,Lower focus day with lighter workload

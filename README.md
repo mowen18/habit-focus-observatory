@@ -25,6 +25,12 @@ Minimal MVP scaffold for a SQL + Python + Streamlit habit and focus analysis pro
 
 ## Sample Ingestion
 
-Run the sample CSV loader from the repo root:
+Sample files:
+
+- `data/sample_logs.csv` for `daily_checkin`
+- `data/sample_caffeine_log.csv` for `caffeine_log`
+- `data/sample_exercise_log.csv` for `exercise_log`
+
+Run the sample CSV loaders from the repo root:
 
 `python -m src.ingest`
