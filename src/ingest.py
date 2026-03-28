@@ -1,6 +1,7 @@
 """Minimal CSV ingestion for loading sample data into Postgres."""
 
 import csv
+from decimal import Decimal
 from datetime import date, time
 from pathlib import Path
 
@@ -27,6 +28,12 @@ def _to_optional_int(value: str):
     return int(cleaned) if cleaned else None
 
 
+def _to_optional_decimal(value: str):
+    """Convert a CSV value to Decimal, or None when blank."""
+    cleaned = value.strip()
+    return Decimal(cleaned) if cleaned else None
+
+
 def _to_optional_text(value: str):
     """Convert a CSV value to stripped text, or None when blank."""
     cleaned = value.strip()
@@ -38,6 +45,11 @@ def _upsert_daily_checkins(cursor, rows) -> int:
     for row in rows:
         payload = {
             "checkin_date": date.fromisoformat(row["check_in_date"]),
+            "sleep_hours": _to_optional_decimal(row["sleep_hours"]),
+            "sleep_quality": _to_optional_int(row["sleep_quality"]),
+            "mood_rating": _to_optional_int(row["mood_score"]),
+            "stress_rating": _to_optional_int(row["stress_score"]),
+            "deep_work_minutes": _to_optional_int(row["deep_work_minutes"]),
             "focus_rating": _to_optional_int(row["focus_score"]),
             "energy_rating": _to_optional_int(row["energy_score"]),
             "notes": _to_optional_text(row["notes"]),
@@ -47,18 +59,33 @@ def _upsert_daily_checkins(cursor, rows) -> int:
             """
             INSERT INTO daily_checkin (
                 checkin_date,
+                sleep_hours,
+                sleep_quality,
+                mood_rating,
+                stress_rating,
+                deep_work_minutes,
                 focus_rating,
                 energy_rating,
                 notes
             )
             VALUES (
                 %(checkin_date)s,
+                %(sleep_hours)s,
+                %(sleep_quality)s,
+                %(mood_rating)s,
+                %(stress_rating)s,
+                %(deep_work_minutes)s,
                 %(focus_rating)s,
                 %(energy_rating)s,
                 %(notes)s
             )
             ON CONFLICT (checkin_date) DO UPDATE
             SET
+                sleep_hours = EXCLUDED.sleep_hours,
+                sleep_quality = EXCLUDED.sleep_quality,
+                mood_rating = EXCLUDED.mood_rating,
+                stress_rating = EXCLUDED.stress_rating,
+                deep_work_minutes = EXCLUDED.deep_work_minutes,
                 focus_rating = EXCLUDED.focus_rating,
                 energy_rating = EXCLUDED.energy_rating,
                 notes = EXCLUDED.notes

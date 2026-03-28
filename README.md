@@ -27,7 +27,7 @@ Minimal MVP scaffold for a SQL + Python + Streamlit habit and focus analysis pro
 
 Sample files:
 
-- `data/sample_logs.csv` for `daily_checkin`
+- `data/sample_logs.csv` for `daily_checkin` fields: `check_in_date`, `sleep_hours`, `sleep_quality`, `energy_score`, `focus_score`, `mood_score`, `stress_score`, `deep_work_minutes`, `notes`
 - `data/sample_caffeine_log.csv` for `caffeine_log`
 - `data/sample_exercise_log.csv` for `exercise_log`
 

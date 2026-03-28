@@ -1,3 +1,3 @@
-check_in_date,focus_score,energy_score,notes
-2026-03-25,8,7,Strong focus day with steady energy
-2026-03-26,5,6,Lower focus day with lighter workload
+check_in_date,sleep_hours,sleep_quality,energy_score,focus_score,mood_score,stress_score,deep_work_minutes,notes
+2026-03-25,7.50,8,7,8,7,4,150,Strong focus day with steady energy
+2026-03-26,6.25,6,6,5,6,5,60,Lower focus day with lighter workload
