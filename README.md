@@ -2,6 +2,13 @@
 
 Minimal MVP scaffold for a SQL + Python + Streamlit habit and focus analysis project.
 
+## Local Setup
+
+1. Activate the project environment: `source .venv/bin/activate`
+2. Install dependencies: `pip install -r requirements.txt`
+3. Copy environment variables: `cp .env.example .env`
+4. Start Postgres: `docker compose up -d`
+
 ## Structure
 
 - `app/` contains the Streamlit entrypoint.

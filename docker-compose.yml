@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: habit_focus_postgres
+    environment:
+      POSTGRES_DB: habit_focus_db
+      POSTGRES_USER: habit_user
+      POSTGRES_PASSWORD: habit_pw
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
