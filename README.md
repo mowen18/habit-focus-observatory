@@ -21,11 +21,7 @@ Minimal MVP scaffold for a SQL + Python + Streamlit habit and focus analysis pro
 
 1. Activate the project environment: `source .venv/bin/activate`
 2. Install dependencies: `pip install -r requirements.txt`
-3. Run the app: `streamlit run app/streamlit_app.py`
-
-Use the Streamlit app for manual daily check-in entry into Postgres:
-
-`streamlit run app/streamlit_app.py`
+3. Run the app from the repo root: `streamlit run app/streamlit_app.py`
 
 ## Sample Ingestion
 
