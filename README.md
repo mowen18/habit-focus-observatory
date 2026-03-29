@@ -23,6 +23,9 @@ Minimal MVP scaffold for a SQL + Python + Streamlit habit and focus analysis pro
 2. Install dependencies: `pip install -r requirements.txt`
 3. Run the app from the repo root: `streamlit run app/streamlit_app.py`
 
+The Streamlit form supports one `daily_checkin` row plus one optional
+`caffeine_log` entry and one optional `exercise_log` entry for the same date.
+
 ## Sample Ingestion
 
 Sample files:
