@@ -40,6 +40,9 @@ into four separate forms:
 Each section has its own submit button, so you can save one part of the workflow
 without resubmitting the others.
 
+The app also includes a read-only "Recent Trends & Review" section that uses
+`daily_metrics_vw` to show recent summary metrics, charts, and a recent log table.
+
 ## Sample Ingestion
 
 Sample files:

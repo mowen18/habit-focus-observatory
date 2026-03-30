@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 from typing import Optional
 
+import pandas as pd
 import streamlit as st
 
 
@@ -165,6 +166,49 @@ def _render_save_error(exc: Exception) -> None:
         "We couldn't save this entry. "
         f"Please confirm Postgres is running and try again. Details: {exc}"
     )
+
+
+def load_recent_daily_metrics(limit: int = 14) -> pd.DataFrame:
+    """Fetch a small recent window from daily_metrics_vw for review charts and tables."""
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    checkin_date,
+                    sleep_hours,
+                    sleep_quality,
+                    energy_rating,
+                    focus_rating,
+                    mood_rating,
+                    stress_rating,
+                    deep_work_minutes,
+                    total_caffeine_mg,
+                    caffeine_after_2pm,
+                    total_exercise_minutes,
+                    high_intensity_flag
+                FROM daily_metrics_vw
+                ORDER BY checkin_date DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cursor.fetchall()
+            columns = [column.name for column in cursor.description]
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    metrics_df = pd.DataFrame(rows, columns=columns)
+    return metrics_df.sort_values("checkin_date").reset_index(drop=True)
+
+
+def _format_average(series: pd.Series, decimals: int = 1) -> str:
+    """Format an average metric while handling missing values cleanly."""
+    average_value = series.mean()
+    if pd.isna(average_value):
+        return "N/A"
+    return f"{average_value:.{decimals}f}"
 
 
 st.set_page_config(page_title="Habit Focus Observatory", layout="centered")
@@ -361,3 +405,62 @@ if exercise_submitted:
             st.success(f"Cleared exercise entries for {exercise_checkin_date.isoformat()}.")
     except Exception as exc:
         _render_save_error(exc)
+
+st.divider()
+st.subheader("Recent Trends & Review")
+
+try:
+    recent_metrics_df = load_recent_daily_metrics(limit=14)
+except Exception as exc:
+    st.error(
+        "We couldn't load the recent trends section. "
+        f"Please confirm Postgres is running and try again. Details: {exc}"
+    )
+else:
+    if recent_metrics_df.empty:
+        st.info("No data yet. Save a check-in above to populate the recent review section.")
+    else:
+        recent_7d_df = recent_metrics_df.tail(7)
+
+        metric_col_1, metric_col_2, metric_col_3, metric_col_4 = st.columns(4)
+        metric_col_1.metric(
+            "Avg sleep hours",
+            _format_average(recent_7d_df["sleep_hours"], decimals=2),
+        )
+        metric_col_2.metric(
+            "Avg focus rating",
+            _format_average(recent_7d_df["focus_rating"]),
+        )
+        metric_col_3.metric(
+            "Avg energy rating",
+            _format_average(recent_7d_df["energy_rating"]),
+        )
+        metric_col_4.metric(
+            "Avg deep work minutes",
+            _format_average(recent_7d_df["deep_work_minutes"]),
+        )
+
+        st.write("Sleep hours over time")
+        st.line_chart(
+            recent_metrics_df.set_index("checkin_date")[["sleep_hours"]],
+            use_container_width=True,
+        )
+
+        st.write("Focus rating over time")
+        st.line_chart(
+            recent_metrics_df.set_index("checkin_date")[["focus_rating"]],
+            use_container_width=True,
+        )
+
+        st.write("Deep work minutes over time")
+        st.line_chart(
+            recent_metrics_df.set_index("checkin_date")[["deep_work_minutes"]],
+            use_container_width=True,
+        )
+
+        st.write("Recent daily logs")
+        st.dataframe(
+            recent_metrics_df.sort_values("checkin_date", ascending=False),
+            use_container_width=True,
+            hide_index=True,
+        )
