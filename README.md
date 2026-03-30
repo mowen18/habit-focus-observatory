@@ -23,8 +23,22 @@ Minimal MVP scaffold for a SQL + Python + Streamlit habit and focus analysis pro
 2. Install dependencies: `pip install -r requirements.txt`
 3. Run the app from the repo root: `streamlit run app/streamlit_app.py`
 
-The Streamlit form supports one `daily_checkin` row plus one optional
-`caffeine_log` entry and one optional `exercise_log` entry for the same date.
+## Streamlit Workflow
+
+The MVP Streamlit app keeps everything on one page and breaks the morning routine
+into four separate forms:
+
+1. Today morning check-in
+   - saves today’s `daily_checkin` fields for sleep, ratings, and notes
+2. Yesterday deep work
+   - updates only `deep_work_minutes` on `daily_checkin` for the selected date
+3. Yesterday caffeine summary
+   - replaces that date’s stored caffeine summary using a single `caffeine_log` row
+4. Yesterday exercise
+   - replaces that date’s stored exercise summary using a single `exercise_log` row
+
+Each section has its own submit button, so you can save one part of the workflow
+without resubmitting the others.
 
 ## Sample Ingestion
 
