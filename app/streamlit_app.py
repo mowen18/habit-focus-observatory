@@ -18,6 +18,25 @@ from src.db import get_connection
 
 TODAY = date.today()
 YESTERDAY = TODAY - timedelta(days=1)
+MORNING_DEFAULTS = {
+    "sleep_hours": 7.5,
+    "sleep_quality": 7,
+    "energy_rating": 7,
+    "focus_rating": 7,
+    "mood_rating": 7,
+    "stress_rating": 4,
+    "notes": "",
+}
+DEEP_WORK_DEFAULTS = {"deep_work_minutes": 60}
+CAFFEINE_DEFAULTS = {
+    "total_caffeine_mg": 0,
+    "last_caffeine_time": time(14, 0),
+}
+EXERCISE_DEFAULTS = {
+    "duration_minutes": 0,
+    "intensity": "",
+    "start_time": time(7, 0),
+}
 
 
 def _clean_text(value: str):
@@ -168,6 +187,110 @@ def _render_save_error(exc: Exception) -> None:
     )
 
 
+def load_daily_checkin_values(checkin_date: date) -> dict:
+    """Fetch one daily_checkin row for preloading form values."""
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    sleep_hours,
+                    sleep_quality,
+                    energy_rating,
+                    focus_rating,
+                    mood_rating,
+                    stress_rating,
+                    deep_work_minutes,
+                    notes
+                FROM daily_checkin
+                WHERE checkin_date = %s
+                """,
+                (checkin_date,),
+            )
+            row = cursor.fetchone()
+
+    if row is None:
+        return {}
+
+    return {
+        "sleep_hours": float(row[0]) if row[0] is not None else MORNING_DEFAULTS["sleep_hours"],
+        "sleep_quality": row[1] if row[1] is not None else MORNING_DEFAULTS["sleep_quality"],
+        "energy_rating": row[2] if row[2] is not None else MORNING_DEFAULTS["energy_rating"],
+        "focus_rating": row[3] if row[3] is not None else MORNING_DEFAULTS["focus_rating"],
+        "mood_rating": row[4] if row[4] is not None else MORNING_DEFAULTS["mood_rating"],
+        "stress_rating": row[5] if row[5] is not None else MORNING_DEFAULTS["stress_rating"],
+        "deep_work_minutes": row[6] if row[6] is not None else DEEP_WORK_DEFAULTS["deep_work_minutes"],
+        "notes": row[7] or "",
+    }
+
+
+def load_caffeine_summary_values(checkin_date: date) -> dict:
+    """Fetch one caffeine summary row for preloading the caffeine form."""
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    caffeine_mg,
+                    intake_time
+                FROM caffeine_log
+                WHERE checkin_date = %s
+                ORDER BY caffeine_id DESC
+                LIMIT 1
+                """,
+                (checkin_date,),
+            )
+            row = cursor.fetchone()
+
+    if row is None:
+        return {}
+
+    return {
+        "total_caffeine_mg": row[0],
+        "last_caffeine_time": row[1],
+    }
+
+
+def load_exercise_summary_values(checkin_date: date) -> dict:
+    """Fetch one exercise summary row for preloading the exercise form."""
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    duration_minutes,
+                    intensity,
+                    start_time
+                FROM exercise_log
+                WHERE checkin_date = %s
+                ORDER BY exercise_id DESC
+                LIMIT 1
+                """,
+                (checkin_date,),
+            )
+            row = cursor.fetchone()
+
+    if row is None:
+        return {}
+
+    return {
+        "duration_minutes": row[0],
+        "intensity": row[1] or "",
+        "start_time": row[2] if row[2] is not None else EXERCISE_DEFAULTS["start_time"],
+    }
+
+
+def _sync_form_state(form_name: str, selected_date: date, values_by_key: dict) -> None:
+    """Update widget state only when a section's selected date changes."""
+    loaded_date_key = f"{form_name}_loaded_date"
+    if st.session_state.get(loaded_date_key) == selected_date:
+        return
+
+    for key, value in values_by_key.items():
+        st.session_state[key] = value
+    st.session_state[loaded_date_key] = selected_date
+
+
 def load_recent_daily_metrics(limit: int = 14) -> pd.DataFrame:
     """Fetch a small recent window from daily_metrics_vw for review charts and tables."""
     with get_connection() as connection:
@@ -211,6 +334,17 @@ def _format_average(series: pd.Series, decimals: int = 1) -> str:
     return f"{average_value:.{decimals}f}"
 
 
+def prepare_sleep_chart_data(recent_metrics_df: pd.DataFrame) -> pd.DataFrame:
+    """Return clean numeric sleep-hour data ready for st.line_chart."""
+    sleep_chart_df = recent_metrics_df[["checkin_date", "sleep_hours"]].copy()
+    sleep_chart_df["sleep_hours"] = pd.to_numeric(
+        sleep_chart_df["sleep_hours"],
+        errors="coerce",
+    )
+    sleep_chart_df = sleep_chart_df.dropna(subset=["sleep_hours"])
+    return sleep_chart_df.set_index("checkin_date")[["sleep_hours"]]
+
+
 st.set_page_config(page_title="Habit Focus Observatory", layout="centered")
 st.title("Habit Focus Observatory")
 st.caption("Simple morning workflow for the MVP.")
@@ -219,18 +353,57 @@ st.write(
 )
 
 st.subheader("1. Today Morning Check-in")
-with st.form("today_morning_checkin_form"):
-    morning_date_col, morning_sleep_col = st.columns(2)
-    morning_checkin_date = morning_date_col.date_input(
-        "Check-in date",
-        value=TODAY,
-        key="morning_checkin_date",
+morning_checkin_date = st.date_input(
+    "Check-in date",
+    value=TODAY,
+    key="morning_checkin_date",
+)
+try:
+    morning_saved_values = load_daily_checkin_values(morning_checkin_date)
+except Exception as exc:
+    st.error(
+        "We couldn't load the saved morning check-in values. "
+        f"Please confirm Postgres is running and try again. Details: {exc}"
     )
-    morning_sleep_hours = morning_sleep_col.number_input(
+    morning_saved_values = {}
+
+_sync_form_state(
+    "morning_form",
+    morning_checkin_date,
+    {
+        "morning_sleep_hours": morning_saved_values.get(
+            "sleep_hours",
+            MORNING_DEFAULTS["sleep_hours"],
+        ),
+        "morning_sleep_quality": morning_saved_values.get(
+            "sleep_quality",
+            MORNING_DEFAULTS["sleep_quality"],
+        ),
+        "morning_energy_rating": morning_saved_values.get(
+            "energy_rating",
+            MORNING_DEFAULTS["energy_rating"],
+        ),
+        "morning_focus_rating": morning_saved_values.get(
+            "focus_rating",
+            MORNING_DEFAULTS["focus_rating"],
+        ),
+        "morning_mood_rating": morning_saved_values.get(
+            "mood_rating",
+            MORNING_DEFAULTS["mood_rating"],
+        ),
+        "morning_stress_rating": morning_saved_values.get(
+            "stress_rating",
+            MORNING_DEFAULTS["stress_rating"],
+        ),
+        "morning_notes": morning_saved_values.get("notes", MORNING_DEFAULTS["notes"]),
+    },
+)
+
+with st.form("today_morning_checkin_form"):
+    morning_sleep_hours = st.number_input(
         "Sleep hours",
         min_value=0.0,
         max_value=24.0,
-        value=7.5,
         step=0.25,
         key="morning_sleep_hours",
     )
@@ -240,7 +413,6 @@ with st.form("today_morning_checkin_form"):
         "Sleep quality (1-10)",
         min_value=1,
         max_value=10,
-        value=7,
         step=1,
         key="morning_sleep_quality",
     )
@@ -248,7 +420,6 @@ with st.form("today_morning_checkin_form"):
         "Energy rating (1-10)",
         min_value=1,
         max_value=10,
-        value=7,
         step=1,
         key="morning_energy_rating",
     )
@@ -256,7 +427,6 @@ with st.form("today_morning_checkin_form"):
         "Focus rating (1-10)",
         min_value=1,
         max_value=10,
-        value=7,
         step=1,
         key="morning_focus_rating",
     )
@@ -266,7 +436,6 @@ with st.form("today_morning_checkin_form"):
         "Mood rating (1-10)",
         min_value=1,
         max_value=10,
-        value=7,
         step=1,
         key="morning_mood_rating",
     )
@@ -274,7 +443,6 @@ with st.form("today_morning_checkin_form"):
         "Stress rating (1-10)",
         min_value=1,
         max_value=10,
-        value=4,
         step=1,
         key="morning_stress_rating",
     )
@@ -300,17 +468,35 @@ if morning_submitted:
         _render_save_error(exc)
 
 st.subheader("2. Yesterday Deep Work")
-with st.form("yesterday_deep_work_form"):
-    deep_work_col_1, deep_work_col_2 = st.columns(2)
-    deep_work_date = deep_work_col_1.date_input(
-        "Check-in date",
-        value=YESTERDAY,
-        key="deep_work_date",
+deep_work_date = st.date_input(
+    "Check-in date",
+    value=YESTERDAY,
+    key="deep_work_date",
+)
+try:
+    deep_work_saved_values = load_daily_checkin_values(deep_work_date)
+except Exception as exc:
+    st.error(
+        "We couldn't load the saved deep work values. "
+        f"Please confirm Postgres is running and try again. Details: {exc}"
     )
-    deep_work_minutes = deep_work_col_2.number_input(
+    deep_work_saved_values = {}
+
+_sync_form_state(
+    "deep_work_form",
+    deep_work_date,
+    {
+        "deep_work_minutes": deep_work_saved_values.get(
+            "deep_work_minutes",
+            DEEP_WORK_DEFAULTS["deep_work_minutes"],
+        )
+    },
+)
+
+with st.form("yesterday_deep_work_form"):
+    deep_work_minutes = st.number_input(
         "Deep work minutes",
         min_value=0,
-        value=60,
         step=15,
         key="deep_work_minutes",
     )
@@ -325,23 +511,44 @@ if deep_work_submitted:
         _render_save_error(exc)
 
 st.subheader("3. Yesterday Caffeine Summary")
-with st.form("yesterday_caffeine_form"):
-    caffeine_date_col, caffeine_total_col = st.columns(2)
-    caffeine_checkin_date = caffeine_date_col.date_input(
-        "Check-in date",
-        value=YESTERDAY,
-        key="caffeine_checkin_date",
+caffeine_checkin_date = st.date_input(
+    "Check-in date",
+    value=YESTERDAY,
+    key="caffeine_checkin_date",
+)
+try:
+    caffeine_saved_values = load_caffeine_summary_values(caffeine_checkin_date)
+except Exception as exc:
+    st.error(
+        "We couldn't load the saved caffeine values. "
+        f"Please confirm Postgres is running and try again. Details: {exc}"
     )
-    total_caffeine_mg = caffeine_total_col.number_input(
+    caffeine_saved_values = {}
+
+_sync_form_state(
+    "caffeine_form",
+    caffeine_checkin_date,
+    {
+        "total_caffeine_mg": caffeine_saved_values.get(
+            "total_caffeine_mg",
+            CAFFEINE_DEFAULTS["total_caffeine_mg"],
+        ),
+        "last_caffeine_time": caffeine_saved_values.get(
+            "last_caffeine_time",
+            CAFFEINE_DEFAULTS["last_caffeine_time"],
+        ),
+    },
+)
+
+with st.form("yesterday_caffeine_form"):
+    total_caffeine_mg = st.number_input(
         "Total caffeine mg",
         min_value=0,
-        value=0,
         step=5,
         key="total_caffeine_mg",
     )
     last_caffeine_time = st.time_input(
         "Last caffeine time",
-        value=time(14, 0),
         key="last_caffeine_time",
     )
 
@@ -362,17 +569,43 @@ if caffeine_submitted:
         _render_save_error(exc)
 
 st.subheader("4. Yesterday Exercise")
-with st.form("yesterday_exercise_form"):
-    exercise_date_col, exercise_duration_col = st.columns(2)
-    exercise_checkin_date = exercise_date_col.date_input(
-        "Check-in date",
-        value=YESTERDAY,
-        key="exercise_checkin_date",
+exercise_checkin_date = st.date_input(
+    "Check-in date",
+    value=YESTERDAY,
+    key="exercise_checkin_date",
+)
+try:
+    exercise_saved_values = load_exercise_summary_values(exercise_checkin_date)
+except Exception as exc:
+    st.error(
+        "We couldn't load the saved exercise values. "
+        f"Please confirm Postgres is running and try again. Details: {exc}"
     )
-    exercise_duration_minutes = exercise_duration_col.number_input(
+    exercise_saved_values = {}
+
+_sync_form_state(
+    "exercise_form",
+    exercise_checkin_date,
+    {
+        "exercise_duration_minutes": exercise_saved_values.get(
+            "duration_minutes",
+            EXERCISE_DEFAULTS["duration_minutes"],
+        ),
+        "exercise_intensity": exercise_saved_values.get(
+            "intensity",
+            EXERCISE_DEFAULTS["intensity"],
+        ),
+        "exercise_start_time": exercise_saved_values.get(
+            "start_time",
+            EXERCISE_DEFAULTS["start_time"],
+        ),
+    },
+)
+
+with st.form("yesterday_exercise_form"):
+    exercise_duration_minutes = st.number_input(
         "Duration minutes",
         min_value=0,
-        value=0,
         step=5,
         key="exercise_duration_minutes",
     )
@@ -385,7 +618,6 @@ with st.form("yesterday_exercise_form"):
     )
     exercise_start_time = exercise_time_col.time_input(
         "Start time",
-        value=time(7, 0),
         key="exercise_start_time",
     )
 
@@ -441,10 +673,14 @@ else:
         )
 
         st.write("Sleep hours over time")
-        st.line_chart(
-            recent_metrics_df.set_index("checkin_date")[["sleep_hours"]],
-            use_container_width=True,
-        )
+        sleep_chart_df = prepare_sleep_chart_data(recent_metrics_df)
+        if sleep_chart_df.empty:
+            st.info("No sleep-hour data available for the recent chart yet.")
+        else:
+            st.line_chart(
+                sleep_chart_df,
+                use_container_width=True,
+            )
 
         st.write("Focus rating over time")
         st.line_chart(
