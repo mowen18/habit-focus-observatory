@@ -45,6 +45,8 @@ without resubmitting the others.
 
 The app also includes a read-only "Recent Trends & Review" section that uses
 `daily_metrics_vw` to show recent summary metrics, charts, and a recent log table.
+It also includes a compact data completeness area backed by `daily_completeness_vw`
+so you can quickly see whether each section was logged for recent dates.
 
 When you pick a date in one of the forms, the app now preloads any saved values
 for that date when they exist, making it easier to review and edit earlier entries.

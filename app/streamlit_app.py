@@ -391,12 +391,87 @@ def load_recent_daily_metrics(limit: int = 14) -> pd.DataFrame:
     return metrics_df.sort_values("checkin_date").reset_index(drop=True)
 
 
+def load_recent_daily_completeness(limit: int = 14) -> pd.DataFrame:
+    """Fetch a recent completeness window for the review section."""
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                WITH recent_dates AS (
+                    SELECT
+                        generate_series(
+                            CURRENT_DATE - (%s::INTEGER - 1),
+                            CURRENT_DATE,
+                            INTERVAL '1 day'
+                        )::DATE AS checkin_date
+                )
+                SELECT
+                    recent_dates.checkin_date,
+                    COALESCE(dc.has_checkin, FALSE) AS has_checkin,
+                    COALESCE(dc.has_deep_work_entry, FALSE) AS has_deep_work_entry,
+                    COALESCE(dc.has_caffeine_entry, FALSE) AS has_caffeine_entry,
+                    COALESCE(dc.has_exercise_entry, FALSE) AS has_exercise_entry,
+                    COALESCE(dc.completed_sections, 0) AS completed_sections,
+                    COALESCE(dc.expected_sections, 4) AS expected_sections,
+                    COALESCE(dc.completeness_pct, 0.0) AS completeness_pct
+                FROM recent_dates
+                LEFT JOIN daily_completeness_vw AS dc
+                    ON recent_dates.checkin_date = dc.checkin_date
+                ORDER BY recent_dates.checkin_date DESC
+                """,
+                (limit,),
+            )
+            rows = cursor.fetchall()
+            columns = [column.name for column in cursor.description]
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    completeness_df = pd.DataFrame(rows, columns=columns)
+    return completeness_df.sort_values("checkin_date").reset_index(drop=True)
+
+
 def _format_average(series: pd.Series, decimals: int = 1) -> str:
     """Format an average metric while handling missing values cleanly."""
     average_value = series.mean()
     if pd.isna(average_value):
         return "N/A"
     return f"{average_value:.{decimals}f}"
+
+
+def _format_logged_status(value: bool) -> str:
+    """Display completeness flags with simple human-friendly labels."""
+    return "Logged" if bool(value) else "Not logged"
+
+
+def prepare_completeness_display_data(recent_completeness_df: pd.DataFrame) -> pd.DataFrame:
+    """Return a small recent completeness table ready for display."""
+    display_df = recent_completeness_df.copy()
+    status_columns = [
+        "has_checkin",
+        "has_deep_work_entry",
+        "has_caffeine_entry",
+        "has_exercise_entry",
+    ]
+    for column in status_columns:
+        display_df[column] = display_df[column].map(_format_logged_status)
+
+    display_df["completeness_pct"] = display_df["completeness_pct"].map(
+        lambda value: f"{float(value):.1f}%"
+    )
+
+    return display_df.rename(
+        columns={
+            "checkin_date": "Date",
+            "has_checkin": "Morning check-in",
+            "has_deep_work_entry": "Deep work",
+            "has_caffeine_entry": "Caffeine",
+            "has_exercise_entry": "Exercise",
+            "completed_sections": "Completed sections",
+            "expected_sections": "Expected sections",
+            "completeness_pct": "Completeness",
+        }
+    )
 
 
 def prepare_sleep_chart_data(recent_metrics_df: pd.DataFrame) -> pd.DataFrame:
@@ -702,6 +777,7 @@ st.subheader("Recent Trends & Review")
 
 try:
     recent_metrics_df = load_recent_daily_metrics(limit=14)
+    recent_completeness_df = load_recent_daily_completeness(limit=14)
 except Exception as exc:
     st.error(
         "We couldn't load the recent trends section. "
@@ -751,6 +827,41 @@ else:
         st.line_chart(
             recent_metrics_df.set_index("checkin_date")[["deep_work_minutes"]],
             use_container_width=True,
+        )
+
+        st.write("Data completeness")
+        full_data_days = int(
+            (
+                recent_completeness_df["completed_sections"]
+                == recent_completeness_df["expected_sections"]
+            ).sum()
+        )
+        completeness_metric_col_1, completeness_metric_col_2 = st.columns(2)
+        completeness_metric_col_3, completeness_metric_col_4 = st.columns(2)
+        completeness_metric_col_1.metric(
+            "Full data days",
+            f"{full_data_days}/{len(recent_completeness_df)}",
+        )
+        completeness_metric_col_2.metric(
+            "Missing deep work",
+            int((~recent_completeness_df["has_deep_work_entry"]).sum()),
+        )
+        completeness_metric_col_3.metric(
+            "Missing caffeine",
+            int((~recent_completeness_df["has_caffeine_entry"]).sum()),
+        )
+        completeness_metric_col_4.metric(
+            "Missing exercise",
+            int((~recent_completeness_df["has_exercise_entry"]).sum()),
+        )
+
+        completeness_display_df = prepare_completeness_display_data(
+            recent_completeness_df.sort_values("checkin_date", ascending=False)
+        )
+        st.dataframe(
+            completeness_display_df,
+            use_container_width=True,
+            hide_index=True,
         )
 
         st.write("Recent daily logs")
