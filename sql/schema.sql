@@ -8,6 +8,9 @@ CREATE TABLE daily_checkin (
     mood_rating INTEGER CHECK (mood_rating IS NULL OR mood_rating BETWEEN 1 AND 10),
     stress_rating INTEGER CHECK (stress_rating IS NULL OR stress_rating BETWEEN 1 AND 10),
     deep_work_minutes INTEGER CHECK (deep_work_minutes IS NULL OR deep_work_minutes >= 0),
+    deep_work_logged BOOLEAN NOT NULL DEFAULT FALSE,
+    caffeine_logged BOOLEAN NOT NULL DEFAULT FALSE,
+    exercise_logged BOOLEAN NOT NULL DEFAULT FALSE,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

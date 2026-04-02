@@ -24,11 +24,26 @@ SELECT
     dc.focus_rating,
     dc.mood_rating,
     dc.stress_rating,
-    dc.deep_work_minutes,
-    COALESCE(c.total_caffeine_mg, 0) AS total_caffeine_mg,
-    COALESCE(c.caffeine_after_2pm, 0) AS caffeine_after_2pm,
-    COALESCE(e.total_exercise_minutes, 0) AS total_exercise_minutes,
-    COALESCE(e.high_intensity_flag, 0) AS high_intensity_flag,
+    CASE
+        WHEN dc.deep_work_logged THEN COALESCE(dc.deep_work_minutes, 0)
+        ELSE NULL
+    END AS deep_work_minutes,
+    CASE
+        WHEN dc.caffeine_logged THEN COALESCE(c.total_caffeine_mg, 0)
+        ELSE NULL
+    END AS total_caffeine_mg,
+    CASE
+        WHEN dc.caffeine_logged THEN COALESCE(c.caffeine_after_2pm, 0)
+        ELSE NULL
+    END AS caffeine_after_2pm,
+    CASE
+        WHEN dc.exercise_logged THEN COALESCE(e.total_exercise_minutes, 0)
+        ELSE NULL
+    END AS total_exercise_minutes,
+    CASE
+        WHEN dc.exercise_logged THEN COALESCE(e.high_intensity_flag, 0)
+        ELSE NULL
+    END AS high_intensity_flag,
     LAG(dc.sleep_hours) OVER (ORDER BY dc.checkin_date) AS prior_day_sleep_hours,
     AVG(dc.focus_rating) OVER (
         ORDER BY dc.checkin_date

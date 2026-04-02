@@ -105,11 +105,14 @@ def save_deep_work_minutes(checkin_date: date, deep_work_minutes: int) -> None:
                 """
                 INSERT INTO daily_checkin (
                     checkin_date,
-                    deep_work_minutes
+                    deep_work_minutes,
+                    deep_work_logged
                 )
-                VALUES (%s, %s)
+                VALUES (%s, %s, TRUE)
                 ON CONFLICT (checkin_date) DO UPDATE
-                SET deep_work_minutes = EXCLUDED.deep_work_minutes
+                SET
+                    deep_work_minutes = EXCLUDED.deep_work_minutes,
+                    deep_work_logged = EXCLUDED.deep_work_logged
                 """,
                 (checkin_date, deep_work_minutes),
             )
@@ -128,10 +131,19 @@ def replace_caffeine_summary(
                 (checkin_date,),
             )
 
+            _ensure_daily_checkin_exists(cursor, checkin_date)
+            cursor.execute(
+                """
+                UPDATE daily_checkin
+                SET caffeine_logged = TRUE
+                WHERE checkin_date = %s
+                """,
+                (checkin_date,),
+            )
+
             if total_caffeine_mg <= 0:
                 return
 
-            _ensure_daily_checkin_exists(cursor, checkin_date)
             cursor.execute(
                 """
                 INSERT INTO caffeine_log (
@@ -160,10 +172,19 @@ def replace_exercise_summary(
                 (checkin_date,),
             )
 
+            _ensure_daily_checkin_exists(cursor, checkin_date)
+            cursor.execute(
+                """
+                UPDATE daily_checkin
+                SET exercise_logged = TRUE
+                WHERE checkin_date = %s
+                """,
+                (checkin_date,),
+            )
+
             if duration_minutes <= 0:
                 return
 
-            _ensure_daily_checkin_exists(cursor, checkin_date)
             cursor.execute(
                 """
                 INSERT INTO exercise_log (
@@ -201,6 +222,9 @@ def load_daily_checkin_values(checkin_date: date) -> dict:
                     mood_rating,
                     stress_rating,
                     deep_work_minutes,
+                    deep_work_logged,
+                    caffeine_logged,
+                    exercise_logged,
                     notes
                 FROM daily_checkin
                 WHERE checkin_date = %s
@@ -212,6 +236,8 @@ def load_daily_checkin_values(checkin_date: date) -> dict:
     if row is None:
         return {}
 
+    deep_work_logged = bool(row[7])
+
     return {
         "sleep_hours": float(row[0]) if row[0] is not None else MORNING_DEFAULTS["sleep_hours"],
         "sleep_quality": row[1] if row[1] is not None else MORNING_DEFAULTS["sleep_quality"],
@@ -219,8 +245,15 @@ def load_daily_checkin_values(checkin_date: date) -> dict:
         "focus_rating": row[3] if row[3] is not None else MORNING_DEFAULTS["focus_rating"],
         "mood_rating": row[4] if row[4] is not None else MORNING_DEFAULTS["mood_rating"],
         "stress_rating": row[5] if row[5] is not None else MORNING_DEFAULTS["stress_rating"],
-        "deep_work_minutes": row[6] if row[6] is not None else DEEP_WORK_DEFAULTS["deep_work_minutes"],
-        "notes": row[7] or "",
+        "deep_work_minutes": (
+            row[6]
+            if deep_work_logged and row[6] is not None
+            else DEEP_WORK_DEFAULTS["deep_work_minutes"]
+        ),
+        "deep_work_logged": deep_work_logged,
+        "caffeine_logged": bool(row[8]),
+        "exercise_logged": bool(row[9]),
+        "notes": row[10] or "",
     }
 
 
@@ -228,6 +261,16 @@ def load_caffeine_summary_values(checkin_date: date) -> dict:
     """Fetch one caffeine summary row for preloading the caffeine form."""
     with get_connection() as connection:
         with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT caffeine_logged
+                FROM daily_checkin
+                WHERE checkin_date = %s
+                """,
+                (checkin_date,),
+            )
+            logged_row = cursor.fetchone()
+
             cursor.execute(
                 """
                 SELECT
@@ -242,12 +285,18 @@ def load_caffeine_summary_values(checkin_date: date) -> dict:
             )
             row = cursor.fetchone()
 
-    if row is None:
-        return {}
+    caffeine_logged = bool(logged_row[0]) if logged_row is not None else False
+    if not caffeine_logged:
+        return {"caffeine_logged": False}
 
     return {
-        "total_caffeine_mg": row[0],
-        "last_caffeine_time": row[1],
+        "caffeine_logged": True,
+        "total_caffeine_mg": row[0] if row is not None else 0,
+        "last_caffeine_time": (
+            row[1]
+            if row is not None and row[1] is not None
+            else CAFFEINE_DEFAULTS["last_caffeine_time"]
+        ),
     }
 
 
@@ -255,6 +304,16 @@ def load_exercise_summary_values(checkin_date: date) -> dict:
     """Fetch one exercise summary row for preloading the exercise form."""
     with get_connection() as connection:
         with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT exercise_logged
+                FROM daily_checkin
+                WHERE checkin_date = %s
+                """,
+                (checkin_date,),
+            )
+            logged_row = cursor.fetchone()
+
             cursor.execute(
                 """
                 SELECT
@@ -270,13 +329,19 @@ def load_exercise_summary_values(checkin_date: date) -> dict:
             )
             row = cursor.fetchone()
 
-    if row is None:
-        return {}
+    exercise_logged = bool(logged_row[0]) if logged_row is not None else False
+    if not exercise_logged:
+        return {"exercise_logged": False}
 
     return {
-        "duration_minutes": row[0],
-        "intensity": row[1] or "",
-        "start_time": row[2] if row[2] is not None else EXERCISE_DEFAULTS["start_time"],
+        "exercise_logged": True,
+        "duration_minutes": row[0] if row is not None else 0,
+        "intensity": row[1] if row is not None and row[1] is not None else "",
+        "start_time": (
+            row[2]
+            if row is not None and row[2] is not None
+            else EXERCISE_DEFAULTS["start_time"]
+        ),
     }
 
 
@@ -561,10 +626,7 @@ if caffeine_submitted:
             int(total_caffeine_mg),
             last_caffeine_time,
         )
-        if int(total_caffeine_mg) > 0:
-            st.success(f"Saved caffeine summary for {caffeine_checkin_date.isoformat()}.")
-        else:
-            st.success(f"Cleared caffeine entries for {caffeine_checkin_date.isoformat()}.")
+        st.success(f"Saved caffeine summary for {caffeine_checkin_date.isoformat()}.")
     except Exception as exc:
         _render_save_error(exc)
 
@@ -631,10 +693,7 @@ if exercise_submitted:
             exercise_intensity or None,
             exercise_start_time,
         )
-        if int(exercise_duration_minutes) > 0:
-            st.success(f"Saved exercise for {exercise_checkin_date.isoformat()}.")
-        else:
-            st.success(f"Cleared exercise entries for {exercise_checkin_date.isoformat()}.")
+        st.success(f"Saved exercise for {exercise_checkin_date.isoformat()}.")
     except Exception as exc:
         _render_save_error(exc)
 

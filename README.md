@@ -32,10 +32,13 @@ into four separate forms:
    - saves today’s `daily_checkin` fields for sleep, ratings, and notes
 2. Yesterday deep work
    - updates only `deep_work_minutes` on `daily_checkin` for the selected date
+   - deep work stays null / unknown until this form is submitted, and submitting `0` records an explicit zero
 3. Yesterday caffeine summary
    - replaces that date’s stored caffeine summary using a single `caffeine_log` row
+   - caffeine stays null / unknown until this form is submitted, and submitting `0` records an explicit zero
 4. Yesterday exercise
    - replaces that date’s stored exercise summary using a single `exercise_log` row
+   - exercise stays null / unknown until this form is submitted, and submitting `0` records an explicit zero
 
 Each section has its own submit button, so you can save one part of the workflow
 without resubmitting the others.
@@ -45,6 +48,9 @@ The app also includes a read-only "Recent Trends & Review" section that uses
 
 When you pick a date in one of the forms, the app now preloads any saved values
 for that date when they exist, making it easier to review and edit earlier entries.
+
+For caffeine, exercise, and deep work, the app now distinguishes three states:
+not logged yet (`NULL` / unknown), logged as `0`, and logged as a nonzero value.
 
 ## Sample Ingestion
 
