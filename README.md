@@ -15,7 +15,7 @@ Minimal MVP scaffold for a SQL + Python + Streamlit habit and focus analysis pro
 - `sql/` contains schema, views, and starter analytical queries for the MVP.
 - `src/` contains lightweight Python modules for DB access, ingestion, analytics, and utilities.
 - `data/` contains sample input data.
-- `notebooks/` contains an exploration notebook stub.
+- `notebooks/` contains a lightweight exploratory analysis notebook.
 
 ## Getting Started
 
@@ -47,6 +47,9 @@ The app also includes a read-only "Recent Trends & Review" section that uses
 `daily_metrics_vw` to show recent summary metrics, charts, and a recent log table.
 It also includes a compact data completeness area backed by `daily_completeness_vw`
 so you can quickly see whether each section was logged for recent dates.
+The review section now also includes a few filtered relationship charts for
+same-day morning sleep vs focus, plus lagged comparisons from yesterday's
+caffeine and exercise to today's morning outcomes.
 
 When you pick a date in one of the forms, the app now preloads any saved values
 for that date when they exist, making it easier to review and edit earlier entries.
@@ -65,3 +68,9 @@ Sample files:
 Run the sample CSV loaders from the repo root:
 
 `python -m src.ingest`
+
+## Exploration Notebook
+
+The project also includes a small exploratory notebook at
+`notebooks/exploration.ipynb` that connects to the same database views and
+mirrors the app's lightweight same-day and lagged relationship analysis.

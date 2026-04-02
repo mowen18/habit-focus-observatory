@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 from typing import Optional
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -431,6 +432,46 @@ def load_recent_daily_completeness(limit: int = 14) -> pd.DataFrame:
     return completeness_df.sort_values("checkin_date").reset_index(drop=True)
 
 
+def load_analysis_daily_data() -> pd.DataFrame:
+    """Fetch analysis-ready current-day outcomes plus prior-day behavior inputs."""
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    current_day.checkin_date,
+                    current_day.sleep_hours,
+                    current_day.sleep_quality,
+                    current_day.energy_rating,
+                    current_day.focus_rating,
+                    current_day.mood_rating,
+                    current_day.stress_rating,
+                    current_completeness.has_checkin,
+                    prior_day.deep_work_minutes AS prior_day_deep_work_minutes,
+                    prior_day.total_caffeine_mg AS prior_day_total_caffeine_mg,
+                    prior_day.total_exercise_minutes AS prior_day_total_exercise_minutes,
+                    prior_completeness.has_deep_work_entry AS prior_day_has_deep_work_entry,
+                    prior_completeness.has_caffeine_entry AS prior_day_has_caffeine_entry,
+                    prior_completeness.has_exercise_entry AS prior_day_has_exercise_entry
+                FROM daily_metrics_vw AS current_day
+                LEFT JOIN daily_completeness_vw AS current_completeness
+                    ON current_day.checkin_date = current_completeness.checkin_date
+                LEFT JOIN daily_metrics_vw AS prior_day
+                    ON prior_day.checkin_date = current_day.checkin_date - 1
+                LEFT JOIN daily_completeness_vw AS prior_completeness
+                    ON prior_completeness.checkin_date = current_day.checkin_date - 1
+                ORDER BY current_day.checkin_date
+                """
+            )
+            rows = cursor.fetchall()
+            columns = [column.name for column in cursor.description]
+
+    if not rows:
+        return pd.DataFrame(columns=columns)
+
+    return pd.DataFrame(rows, columns=columns)
+
+
 def _format_average(series: pd.Series, decimals: int = 1) -> str:
     """Format an average metric while handling missing values cleanly."""
     average_value = series.mean()
@@ -483,6 +524,66 @@ def prepare_sleep_chart_data(recent_metrics_df: pd.DataFrame) -> pd.DataFrame:
     )
     sleep_chart_df = sleep_chart_df.dropna(subset=["sleep_hours"])
     return sleep_chart_df.set_index("checkin_date")[["sleep_hours"]]
+
+
+def prepare_sleep_focus_analysis_data(analysis_df: pd.DataFrame) -> pd.DataFrame:
+    """Return same-day morning rows with usable sleep and focus values."""
+    sleep_focus_df = analysis_df[
+        analysis_df["has_checkin"]
+        & analysis_df["sleep_hours"].notna()
+        & analysis_df["focus_rating"].notna()
+    ][["checkin_date", "sleep_hours", "focus_rating"]].copy()
+    return sleep_focus_df.sort_values("checkin_date").reset_index(drop=True)
+
+
+def prepare_caffeine_sleep_quality_data(analysis_df: pd.DataFrame) -> pd.DataFrame:
+    """Return prior-day caffeine inputs aligned to current-day sleep quality."""
+    caffeine_sleep_df = analysis_df[
+        analysis_df["prior_day_has_caffeine_entry"]
+        & analysis_df["prior_day_total_caffeine_mg"].notna()
+        & analysis_df["sleep_quality"].notna()
+    ][["checkin_date", "prior_day_total_caffeine_mg", "sleep_quality"]].copy()
+    return caffeine_sleep_df.sort_values("checkin_date").reset_index(drop=True)
+
+
+def prepare_exercise_energy_data(analysis_df: pd.DataFrame) -> pd.DataFrame:
+    """Return prior-day exercise inputs aligned to current-day energy ratings."""
+    exercise_energy_df = analysis_df[
+        analysis_df["prior_day_has_exercise_entry"]
+        & analysis_df["prior_day_total_exercise_minutes"].notna()
+        & analysis_df["energy_rating"].notna()
+    ][["checkin_date", "prior_day_total_exercise_minutes", "energy_rating"]].copy()
+    return exercise_energy_df.sort_values("checkin_date").reset_index(drop=True)
+
+
+def build_scatter_chart(
+    chart_df: pd.DataFrame,
+    x_column: str,
+    y_column: str,
+    x_title: str,
+    y_title: str,
+) -> alt.Chart:
+    """Build a simple Altair scatter plot for a filtered daily relationship."""
+    chart_df = chart_df.copy()
+    if "checkin_date" in chart_df.columns:
+        chart_df["checkin_date"] = pd.to_datetime(chart_df["checkin_date"])
+    chart_df[x_column] = pd.to_numeric(chart_df[x_column], errors="coerce")
+    chart_df[y_column] = pd.to_numeric(chart_df[y_column], errors="coerce")
+
+    return (
+        alt.Chart(chart_df)
+        .mark_circle(size=90, color="#2E6F95")
+        .encode(
+            x=alt.X(f"{x_column}:Q", title=x_title),
+            y=alt.Y(f"{y_column}:Q", title=y_title),
+            tooltip=[
+                alt.Tooltip("checkin_date:T", title="Date"),
+                alt.Tooltip(f"{x_column}:Q", title=x_title),
+                alt.Tooltip(f"{y_column}:Q", title=y_title),
+            ],
+        )
+        .properties(height=280)
+    )
 
 
 st.set_page_config(page_title="Habit Focus Observatory", layout="centered")
@@ -778,6 +879,7 @@ st.subheader("Recent Trends & Review")
 try:
     recent_metrics_df = load_recent_daily_metrics(limit=14)
     recent_completeness_df = load_recent_daily_completeness(limit=14)
+    analysis_df = load_analysis_daily_data()
 except Exception as exc:
     st.error(
         "We couldn't load the recent trends section. "
@@ -828,6 +930,63 @@ else:
             recent_metrics_df.set_index("checkin_date")[["deep_work_minutes"]],
             use_container_width=True,
         )
+
+        st.write("Relationship spot checks")
+
+        sleep_focus_df = prepare_sleep_focus_analysis_data(analysis_df)
+        st.write("Sleep hours vs same-day focus rating")
+        if len(sleep_focus_df) < 2:
+            st.info("Add at least two morning check-ins with sleep hours and focus ratings to see this chart.")
+        else:
+            st.caption(f"Using {len(sleep_focus_df)} day(s) with a real morning check-in.")
+            st.altair_chart(
+                build_scatter_chart(
+                    sleep_focus_df,
+                    x_column="sleep_hours",
+                    y_column="focus_rating",
+                    x_title="Sleep hours",
+                    y_title="Same-day focus rating",
+                ),
+                use_container_width=True,
+            )
+
+        caffeine_sleep_df = prepare_caffeine_sleep_quality_data(analysis_df)
+        st.write("Yesterday total caffeine mg vs today sleep quality")
+        if len(caffeine_sleep_df) < 2:
+            st.info("Add at least two rows with yesterday's explicitly logged caffeine and today's sleep quality to see this chart.")
+        else:
+            st.caption(
+                f"Using {len(caffeine_sleep_df)} day(s) where yesterday's caffeine was explicitly logged and today's sleep quality is present."
+            )
+            st.altair_chart(
+                build_scatter_chart(
+                    caffeine_sleep_df,
+                    x_column="prior_day_total_caffeine_mg",
+                    y_column="sleep_quality",
+                    x_title="Yesterday total caffeine mg",
+                    y_title="Today sleep quality",
+                ),
+                use_container_width=True,
+            )
+
+        exercise_energy_df = prepare_exercise_energy_data(analysis_df)
+        st.write("Yesterday total exercise minutes vs today energy rating")
+        if len(exercise_energy_df) < 2:
+            st.info("Add at least two rows with yesterday's explicitly logged exercise and today's energy rating to see this chart.")
+        else:
+            st.caption(
+                f"Using {len(exercise_energy_df)} day(s) where yesterday's exercise was explicitly logged and today's energy rating is present."
+            )
+            st.altair_chart(
+                build_scatter_chart(
+                    exercise_energy_df,
+                    x_column="prior_day_total_exercise_minutes",
+                    y_column="energy_rating",
+                    x_title="Yesterday total exercise minutes",
+                    y_title="Today energy rating",
+                ),
+                use_container_width=True,
+            )
 
         st.write("Data completeness")
         full_data_days = int(
