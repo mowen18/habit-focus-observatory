@@ -2,3 +2,6 @@ streamlit
 pandas
 psycopg[binary]
 python-dotenv
+altair
+notebook
+jupyterlab
