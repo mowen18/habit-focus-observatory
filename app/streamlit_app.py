@@ -38,6 +38,9 @@ EXERCISE_DEFAULTS = {
     "intensity": "",
     "start_time": time(7, 0),
 }
+CHART_HEIGHT = 280
+CHART_COLOR = "#2E6F95"
+CHART_POINT_SIZE = 90
 
 
 def _clean_text(value: str):
@@ -515,15 +518,15 @@ def prepare_completeness_display_data(recent_completeness_df: pd.DataFrame) -> p
     )
 
 
-def prepare_sleep_chart_data(recent_metrics_df: pd.DataFrame) -> pd.DataFrame:
-    """Return clean numeric sleep-hour data ready for st.line_chart."""
-    sleep_chart_df = recent_metrics_df[["checkin_date", "sleep_hours"]].copy()
-    sleep_chart_df["sleep_hours"] = pd.to_numeric(
-        sleep_chart_df["sleep_hours"],
-        errors="coerce",
-    )
-    sleep_chart_df = sleep_chart_df.dropna(subset=["sleep_hours"])
-    return sleep_chart_df.set_index("checkin_date")[["sleep_hours"]]
+def prepare_trend_chart_data(
+    recent_metrics_df: pd.DataFrame,
+    value_column: str,
+) -> pd.DataFrame:
+    """Return typed recent metric data for Altair trend charts."""
+    chart_df = recent_metrics_df[["checkin_date", value_column]].copy()
+    chart_df["checkin_date"] = pd.to_datetime(chart_df["checkin_date"])
+    chart_df[value_column] = pd.to_numeric(chart_df[value_column], errors="coerce")
+    return chart_df.sort_values("checkin_date").reset_index(drop=True)
 
 
 def prepare_sleep_focus_analysis_data(analysis_df: pd.DataFrame) -> pd.DataFrame:
@@ -572,7 +575,7 @@ def build_scatter_chart(
 
     return (
         alt.Chart(chart_df)
-        .mark_circle(size=90, color="#2E6F95")
+        .mark_circle(size=CHART_POINT_SIZE, color=CHART_COLOR)
         .encode(
             x=alt.X(f"{x_column}:Q", title=x_title),
             y=alt.Y(f"{y_column}:Q", title=y_title),
@@ -582,8 +585,33 @@ def build_scatter_chart(
                 alt.Tooltip(f"{y_column}:Q", title=y_title),
             ],
         )
-        .properties(height=280)
+        .properties(height=CHART_HEIGHT)
     )
+
+
+def build_time_series_chart(
+    chart_df: pd.DataFrame,
+    y_column: str,
+    y_title: str,
+) -> alt.Chart:
+    """Build a simple Altair line chart with point markers for recent trends."""
+    chart_df = chart_df.copy()
+    chart_df["checkin_date"] = pd.to_datetime(chart_df["checkin_date"])
+    chart_df[y_column] = pd.to_numeric(chart_df[y_column], errors="coerce")
+
+    base_chart = alt.Chart(chart_df).encode(
+        x=alt.X("checkin_date:T", title="Date"),
+        y=alt.Y(f"{y_column}:Q", title=y_title),
+        tooltip=[
+            alt.Tooltip("checkin_date:T", title="Date"),
+            alt.Tooltip(f"{y_column}:Q", title=y_title),
+        ],
+    )
+
+    return (
+        base_chart.mark_line(color=CHART_COLOR, strokeWidth=2.5)
+        + base_chart.mark_circle(size=CHART_POINT_SIZE, color=CHART_COLOR)
+    ).properties(height=CHART_HEIGHT)
 
 
 st.set_page_config(page_title="Habit Focus Observatory", layout="centered")
@@ -910,24 +938,47 @@ else:
         )
 
         st.write("Sleep hours over time")
-        sleep_chart_df = prepare_sleep_chart_data(recent_metrics_df)
-        if sleep_chart_df.empty:
+        sleep_chart_df = prepare_trend_chart_data(
+            recent_metrics_df,
+            value_column="sleep_hours",
+        )
+        if sleep_chart_df["sleep_hours"].dropna().empty:
             st.info("No sleep-hour data available for the recent chart yet.")
         else:
-            st.line_chart(
-                sleep_chart_df,
+            st.altair_chart(
+                build_time_series_chart(
+                    sleep_chart_df,
+                    y_column="sleep_hours",
+                    y_title="Sleep hours",
+                ),
                 use_container_width=True,
             )
 
         st.write("Focus rating over time")
-        st.line_chart(
-            recent_metrics_df.set_index("checkin_date")[["focus_rating"]],
+        focus_chart_df = prepare_trend_chart_data(
+            recent_metrics_df,
+            value_column="focus_rating",
+        )
+        st.altair_chart(
+            build_time_series_chart(
+                focus_chart_df,
+                y_column="focus_rating",
+                y_title="Focus rating",
+            ),
             use_container_width=True,
         )
 
         st.write("Deep work minutes over time")
-        st.line_chart(
-            recent_metrics_df.set_index("checkin_date")[["deep_work_minutes"]],
+        deep_work_chart_df = prepare_trend_chart_data(
+            recent_metrics_df,
+            value_column="deep_work_minutes",
+        )
+        st.altair_chart(
+            build_time_series_chart(
+                deep_work_chart_df,
+                y_column="deep_work_minutes",
+                y_title="Deep work minutes",
+            ),
             use_container_width=True,
         )
 
