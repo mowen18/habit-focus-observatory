@@ -40,9 +40,9 @@ The Streamlit app is a single-page MVP with four form sections:
 2. Yesterday deep work
    - Logs the previous day's deep work minutes.
 3. Yesterday caffeine summary
-   - Replaces the previous day's caffeine summary with a single daily total and last caffeine time.
+   - Saves or updates the selected date’s caffeine summary using a single daily total and last caffeine time. The form defaults to yesterday.
 4. Yesterday exercise
-   - Replaces the previous day's exercise summary with duration, intensity, and start time.
+   - Saves or updates the selected date’s exercise summary with duration, intensity, and start time. The form defaults to yesterday.
 
 Each section saves independently, so one part of the workflow can be updated
 without resubmitting the others.
