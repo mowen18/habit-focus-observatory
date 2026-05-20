@@ -1,76 +1,146 @@
 # habit-focus-observatory
 
-Minimal MVP scaffold for a SQL + Python + Streamlit habit and focus analysis project.
+## Project overview
 
-## Local Setup
+Habit Focus Observatory is a working local MVP for personal analytics around
+habit, energy, and focus tracking. It combines a Streamlit logging workflow,
+PostgreSQL tables, SQL analytics views, and lightweight review charts for sleep,
+deep work, caffeine, exercise, and daily self-ratings.
 
-1. Activate the project environment: `source .venv/bin/activate`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Copy environment variables: `cp .env.example .env`
-4. Start Postgres: `docker compose up -d`
+This is an MVP portfolio project, not a production health, wellness, or medical
+application. It is designed to demonstrate data modeling and analytical workflow
+thinking, not to provide health advice.
 
-## Structure
+## What this project demonstrates
 
-- `app/` contains the Streamlit entrypoint.
-- `sql/` contains schema, views, and starter analytical queries for the MVP.
-- `src/` contains lightweight Python modules for DB access, ingestion, analytics, and utilities.
-- `data/` contains sample input data.
-- `notebooks/` contains a lightweight exploratory analysis notebook.
+- Relational data modeling in Postgres
+- SQL constraints, foreign keys, and analytics views
+- Missing-data modeling: unknown/not logged vs explicitly logged zero
+- Python database access and sample ingestion
+- Streamlit form workflow
+- Review charts and simple lagged relationship analysis
 
-## Getting Started
+## Tech stack
 
-1. Activate the project environment: `source .venv/bin/activate`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run the app from the repo root: `streamlit run app/streamlit_app.py`
+- Python
+- Streamlit
+- PostgreSQL
+- Docker
+- SQL
+- pandas
+- Altair
+- psycopg
 
-## Streamlit Workflow
+## App workflow
 
-The MVP Streamlit app keeps everything on one page and breaks the morning routine
-into four separate forms:
+The Streamlit app is a single-page MVP with four form sections:
 
 1. Today morning check-in
-   - saves today’s `daily_checkin` fields for sleep, ratings, and notes
+   - Logs sleep hours, sleep quality, energy, focus, mood, stress, and notes.
 2. Yesterday deep work
-   - updates only `deep_work_minutes` on `daily_checkin` for the selected date
-   - deep work stays null / unknown until this form is submitted, and submitting `0` records an explicit zero
+   - Logs the previous day's deep work minutes.
 3. Yesterday caffeine summary
-   - replaces that date’s stored caffeine summary using a single `caffeine_log` row
-   - caffeine stays null / unknown until this form is submitted, and submitting `0` records an explicit zero
+   - Replaces the previous day's caffeine summary with a single daily total and last caffeine time.
 4. Yesterday exercise
-   - replaces that date’s stored exercise summary using a single `exercise_log` row
-   - exercise stays null / unknown until this form is submitted, and submitting `0` records an explicit zero
+   - Replaces the previous day's exercise summary with duration, intensity, and start time.
 
-Each section has its own submit button, so you can save one part of the workflow
+Each section saves independently, so one part of the workflow can be updated
 without resubmitting the others.
 
-The app also includes a read-only "Recent Trends & Review" section that uses
-`daily_metrics_vw` to show recent summary metrics, charts, and a recent log table.
-It also includes a compact data completeness area backed by `daily_completeness_vw`
-so you can quickly see whether each section was logged for recent dates.
-The review section now also includes a few filtered relationship charts for
-same-day morning sleep vs focus, plus lagged comparisons from yesterday's
-caffeine and exercise to today's morning outcomes.
+## Architecture
 
-When you pick a date in one of the forms, the app now preloads any saved values
-for that date when they exist, making it easier to review and edit earlier entries.
+```text
+Streamlit forms
+    -> src/habit_repository.py
+    -> PostgreSQL tables
+    -> SQL views
+    -> Streamlit review charts
+```
 
-For caffeine, exercise, and deep work, the app now distinguishes three states:
-not logged yet (`NULL` / unknown), logged as `0`, and logged as a nonzero value.
+The app code is intentionally small and direct:
 
-## Sample Ingestion
+- `app/streamlit_app.py` is the Streamlit entrypoint.
+- `app/forms.py` renders the four logging forms.
+- `app/review.py` renders the Recent Trends & Review section.
+- `app/charts.py` contains Altair chart builders.
+- `src/habit_repository.py` contains database read/write helpers.
+- `src/ingest.py` loads sample CSV data.
 
-Sample files:
+## Data model
 
-- `data/sample_logs.csv` for `daily_checkin` fields: `check_in_date`, `sleep_hours`, `sleep_quality`, `energy_score`, `focus_score`, `mood_score`, `stress_score`, `deep_work_minutes`, `notes`
-- `data/sample_caffeine_log.csv` for `caffeine_log`
-- `data/sample_exercise_log.csv` for `exercise_log`
+- `daily_checkin`
+  - One row per date for sleep, self-ratings, notes, deep work, and logged-state flags.
+- `caffeine_log`
+  - Caffeine intake rows linked to `daily_checkin` by `checkin_date`.
+- `exercise_log`
+  - Exercise session rows linked to `daily_checkin` by `checkin_date`.
 
-Run the sample CSV loaders from the repo root:
+The current app writes caffeine and exercise as daily summaries, while the schema
+keeps those concepts in separate child tables so the model can grow later.
 
-`python -m src.ingest`
+## Analytics layer
 
-## Exploration Notebook
+- `daily_metrics_vw`
+  - Produces one daily analytics row with rolled-up caffeine and exercise metrics,
+    deep work minutes, morning ratings, prior-day sleep, and a rolling focus average.
+- `daily_completeness_vw`
+  - Tracks whether each daily workflow section has been logged.
 
-The project also includes a small exploratory notebook at
-`notebooks/exploration.ipynb` that connects to the same database views and
-mirrors the app's lightweight same-day and lagged relationship analysis.
+The logged flags matter because `0` is a meaningful value. For example, a day can
+have explicitly logged `0` minutes of deep work or `0` mg of caffeine. That is
+different from a day where the form was never submitted and the value is still
+unknown.
+
+## Local setup
+
+From a fresh clone:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+docker compose up -d
+```
+
+Apply the schema and analytics views:
+
+```bash
+docker exec -i habit_focus_postgres psql -U habit_user -d habit_focus_db < sql/schema.sql
+docker exec -i habit_focus_postgres psql -U habit_user -d habit_focus_db < sql/views.sql
+```
+
+Optionally load sample data:
+
+```bash
+python -m src.ingest
+```
+
+Run the app:
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+## Sample data
+
+The `data/` directory contains small sample CSV files for local development and
+demonstration. Only sample or fake data should be committed to this repository;
+real personal logs should stay in ignored local files or private storage.
+
+## Screenshots
+
+Screenshots can be added after running the app locally. No screenshot image files
+are currently included in the repository.
+
+## Future improvements
+
+- Apple Health or wearable import
+- Richer weekly summaries
+- dbt-style modeling
+- More robust testing
+- Deployment option
+
+## Status
+
+This is a working local MVP.
