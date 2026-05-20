@@ -36,9 +36,9 @@ thinking, not to provide health advice.
 The Streamlit app is a single-page MVP with four form sections:
 
 1. Today morning check-in
-   - Logs sleep hours, sleep quality, energy, focus, mood, stress, and notes.
+  - Saves or updates the selected date’s morning check-in with sleep hours, sleep quality, energy, focus, mood, stress, and notes. The form defaults to today.
 2. Yesterday deep work
-   - Logs the previous day's deep work minutes.
+  - Saves or updates the selected date’s deep work summary using a single daily total of deep work minutes. The form defaults to yesterday.
 3. Yesterday caffeine summary
    - Saves or updates the selected date’s caffeine summary using a single daily total and last caffeine time. The form defaults to yesterday.
 4. Yesterday exercise
