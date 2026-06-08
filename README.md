@@ -122,18 +122,18 @@ python -m src.ingest
 
 ## Demo data
 
-For portfolio screenshots and local analytics checks, load the deterministic
-synthetic demo dataset:
+The repository includes synthetic data for local development and portfolio
+review. The deterministic demo loader populates a fixed 30-day window so the app
+can be evaluated without using real personal logs.
 
 ```bash
 python scripts/load_demo_data.py
 ```
 
-The script inserts fake habit and focus records for 2026-01-01 through
-2026-01-30. It is safe to rerun: before inserting, it deletes and replaces only
-rows in that fixed demo date range from `caffeine_log`, `exercise_log`, and
-`daily_checkin`. It does not use real personal data and does not wipe rows
-outside the demo window.
+The loader inserts records for 2026-01-01 through 2026-01-30. It is safe to
+rerun because it deletes and replaces only rows in that fixed demo date range
+from `caffeine_log`, `exercise_log`, and `daily_checkin`; rows outside the demo
+window are left untouched.
 
 After loading the demo data, open the app and use the Review window selector in
 the Recent Trends & Review section. The selector can show either the last 14
@@ -146,17 +146,6 @@ Run the app:
 ```bash
 streamlit run app/streamlit_app.py
 ```
-
-## Sample data
-
-The `data/` directory contains small sample CSV files for local development and
-demonstration. Only sample or fake data should be committed to this repository;
-real personal logs should stay in ignored local files or private storage.
-
-## Screenshots
-
-Screenshots can be added after running the app locally. No screenshot image files
-are currently included in the repository.
 
 ## Future improvements
 
