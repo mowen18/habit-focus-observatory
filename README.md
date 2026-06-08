@@ -116,6 +116,21 @@ Optionally load sample data:
 python -m src.ingest
 ```
 
+## Demo data
+
+For portfolio screenshots and local analytics checks, load the deterministic
+synthetic demo dataset:
+
+```bash
+python scripts/load_demo_data.py
+```
+
+The script inserts fake habit and focus records for 2026-01-01 through
+2026-01-30. It is safe to rerun: before inserting, it deletes and replaces only
+rows in that fixed demo date range from `caffeine_log`, `exercise_log`, and
+`daily_checkin`. It does not use real personal data and does not wipe rows
+outside the demo window.
+
 Run the app:
 
 ```bash
