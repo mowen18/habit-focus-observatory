@@ -1,6 +1,6 @@
 """Recent Trends & Review rendering for the Streamlit habit app."""
 
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 import streamlit as st
@@ -14,7 +14,7 @@ from src.habit_repository import (
 )
 
 
-RECENT_WINDOW_LABEL = "Recent 14 days"
+RECENT_WINDOW_LABEL = "Last 14 calendar days"
 DEMO_WINDOW_LABEL = "Demo window: 2026-01-01 to 2026-01-30"
 DEMO_START_DATE = date(2026, 1, 1)
 DEMO_END_DATE = date(2026, 1, 30)
@@ -104,6 +104,24 @@ def prepare_exercise_energy_data(analysis_df: pd.DataFrame) -> pd.DataFrame:
     return exercise_energy_df.sort_values("checkin_date").reset_index(drop=True)
 
 
+def resolve_review_window(review_window: str, today: date) -> tuple:
+    """Return selected start/end dates and the caption for the review window."""
+    if review_window == DEMO_WINDOW_LABEL:
+        return (
+            DEMO_START_DATE,
+            DEMO_END_DATE,
+            "Showing deterministic synthetic demo data from 2026-01-01 to 2026-01-30.",
+        )
+
+    start_date = today - timedelta(days=13)
+    end_date = today
+    return (
+        start_date,
+        end_date,
+        f"Showing last 14 calendar days: {start_date} to {end_date}.",
+    )
+
+
 def render_recent_review() -> None:
     """Render the Recent Trends & Review section."""
     st.divider()
@@ -114,17 +132,11 @@ def render_recent_review() -> None:
         [RECENT_WINDOW_LABEL, DEMO_WINDOW_LABEL],
     )
     is_demo_window = review_window == DEMO_WINDOW_LABEL
-
-    if is_demo_window:
-        start_date = DEMO_START_DATE
-        end_date = DEMO_END_DATE
-        st.caption(
-            "Showing deterministic synthetic demo data from 2026-01-01 to 2026-01-30."
-        )
-    else:
-        start_date = None
-        end_date = None
-        st.caption("Showing recent 14-day window.")
+    start_date, end_date, review_window_caption = resolve_review_window(
+        review_window,
+        today=date.today(),
+    )
+    st.caption(review_window_caption)
 
     try:
         recent_metrics_df = load_recent_daily_metrics(

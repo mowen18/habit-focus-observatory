@@ -136,9 +136,10 @@ rows in that fixed demo date range from `caffeine_log`, `exercise_log`, and
 outside the demo window.
 
 After loading the demo data, open the app and use the Review window selector in
-the Recent Trends & Review section. Choose
+the Recent Trends & Review section. The selector can show either the last 14
+calendar days or the fixed synthetic demo window. Choose
 `Demo window: 2026-01-01 to 2026-01-30` to show the deterministic screenshot
-dataset instead of the recent 14-day window.
+dataset instead of the current calendar window.
 
 Run the app:
 
