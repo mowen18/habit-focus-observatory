@@ -138,7 +138,7 @@ window are left untouched.
 After loading the demo data, open the app and use the Review window selector in
 the Recent Trends & Review section. The selector can show either the last 14
 calendar days or the fixed synthetic demo window. Choose
-`Demo window: 2026-01-01 to 2026-01-30` to show the deterministic screenshot
+`Demo window: 2026-01-01 to 2026-01-30` to show the deterministic demo
 dataset instead of the current calendar window.
 
 Run the app:
