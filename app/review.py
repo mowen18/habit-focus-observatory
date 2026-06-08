@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from app.charts import build_scatter_chart, build_time_series_chart
+from src.analytics import build_insight_summaries
 from src.habit_repository import (
     load_analysis_daily_data,
     load_recent_daily_completeness,
@@ -284,6 +285,17 @@ def render_recent_review() -> None:
             ),
             use_container_width=True,
         )
+
+    st.write("Insight summaries")
+    insight_summaries = build_insight_summaries(
+        analysis_df=analysis_df,
+        recent_completeness_df=recent_completeness_df,
+    )
+    if insight_summaries:
+        for insight_summary in insight_summaries:
+            st.info(insight_summary)
+    else:
+        st.info("Not enough logged data yet to generate insight summaries.")
 
     st.write("Data completeness")
     full_data_days = int(

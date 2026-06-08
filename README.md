@@ -86,6 +86,10 @@ keeps those concepts in separate child tables so the model can grow later.
 - `daily_completeness_vw`
   - Tracks whether each daily workflow section has been logged.
 
+The app also shows plain-English insight summaries generated from the currently
+selected review window. These summaries compare logged patterns cautiously and
+are intended as exploratory portfolio analytics, not advice.
+
 The logged flags matter because `0` is a meaningful value. For example, a day can
 have explicitly logged `0` minutes of deep work or `0` mg of caffeine. That is
 different from a day where the form was never submitted and the value is still
