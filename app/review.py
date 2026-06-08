@@ -1,5 +1,7 @@
 """Recent Trends & Review rendering for the Streamlit habit app."""
 
+from datetime import date
+
 import pandas as pd
 import streamlit as st
 
@@ -9,6 +11,12 @@ from src.habit_repository import (
     load_recent_daily_completeness,
     load_recent_daily_metrics,
 )
+
+
+RECENT_WINDOW_LABEL = "Recent 14 days"
+DEMO_WINDOW_LABEL = "Demo window: 2026-01-01 to 2026-01-30"
+DEMO_START_DATE = date(2026, 1, 1)
+DEMO_END_DATE = date(2026, 1, 30)
 
 
 def _format_average(series: pd.Series, decimals: int = 1) -> str:
@@ -100,10 +108,38 @@ def render_recent_review() -> None:
     st.divider()
     st.subheader("Recent Trends & Review")
 
+    review_window = st.selectbox(
+        "Review window",
+        [RECENT_WINDOW_LABEL, DEMO_WINDOW_LABEL],
+    )
+    is_demo_window = review_window == DEMO_WINDOW_LABEL
+
+    if is_demo_window:
+        start_date = DEMO_START_DATE
+        end_date = DEMO_END_DATE
+        st.caption(
+            "Showing deterministic synthetic demo data from 2026-01-01 to 2026-01-30."
+        )
+    else:
+        start_date = None
+        end_date = None
+        st.caption("Showing recent 14-day window.")
+
     try:
-        recent_metrics_df = load_recent_daily_metrics(limit=14)
-        recent_completeness_df = load_recent_daily_completeness(limit=14)
-        analysis_df = load_analysis_daily_data()
+        recent_metrics_df = load_recent_daily_metrics(
+            limit=14,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        recent_completeness_df = load_recent_daily_completeness(
+            limit=14,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        analysis_df = load_analysis_daily_data(
+            start_date=start_date,
+            end_date=end_date,
+        )
     except Exception as exc:
         st.error(
             "We couldn't load the recent trends section. "
@@ -112,6 +148,12 @@ def render_recent_review() -> None:
         return
 
     if recent_metrics_df.empty:
+        if is_demo_window:
+            st.info(
+                "No demo data found for 2026-01-01 through 2026-01-30. "
+                "Run python scripts/load_demo_data.py, then refresh the app."
+            )
+            return
         st.info("No data yet. Save a check-in above to populate the recent review section.")
         return
 

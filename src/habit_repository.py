@@ -323,31 +323,58 @@ def load_exercise_summary_values(checkin_date: date) -> dict:
     }
 
 
-def load_recent_daily_metrics(limit: int = 14) -> pd.DataFrame:
-    """Fetch a small recent window from daily_metrics_vw for review charts and tables."""
+def load_recent_daily_metrics(
+    limit: int = 14,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> pd.DataFrame:
+    """Fetch daily metrics for either a recent limit or a fixed date range."""
     with get_connection() as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
-                    checkin_date,
-                    sleep_hours,
-                    sleep_quality,
-                    energy_rating,
-                    focus_rating,
-                    mood_rating,
-                    stress_rating,
-                    deep_work_minutes,
-                    total_caffeine_mg,
-                    caffeine_after_2pm,
-                    total_exercise_minutes,
-                    high_intensity_flag
-                FROM daily_metrics_vw
-                ORDER BY checkin_date DESC
-                LIMIT %s
-                """,
-                (limit,),
-            )
+            if start_date is not None and end_date is not None:
+                cursor.execute(
+                    """
+                    SELECT
+                        checkin_date,
+                        sleep_hours,
+                        sleep_quality,
+                        energy_rating,
+                        focus_rating,
+                        mood_rating,
+                        stress_rating,
+                        deep_work_minutes,
+                        total_caffeine_mg,
+                        caffeine_after_2pm,
+                        total_exercise_minutes,
+                        high_intensity_flag
+                    FROM daily_metrics_vw
+                    WHERE checkin_date BETWEEN %s AND %s
+                    ORDER BY checkin_date
+                    """,
+                    (start_date, end_date),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT
+                        checkin_date,
+                        sleep_hours,
+                        sleep_quality,
+                        energy_rating,
+                        focus_rating,
+                        mood_rating,
+                        stress_rating,
+                        deep_work_minutes,
+                        total_caffeine_mg,
+                        caffeine_after_2pm,
+                        total_exercise_minutes,
+                        high_intensity_flag
+                    FROM daily_metrics_vw
+                    ORDER BY checkin_date DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
             rows = cursor.fetchall()
             columns = [column.name for column in cursor.description]
 
@@ -358,36 +385,68 @@ def load_recent_daily_metrics(limit: int = 14) -> pd.DataFrame:
     return metrics_df.sort_values("checkin_date").reset_index(drop=True)
 
 
-def load_recent_daily_completeness(limit: int = 14) -> pd.DataFrame:
-    """Fetch a recent completeness window for the review section."""
+def load_recent_daily_completeness(
+    limit: int = 14,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> pd.DataFrame:
+    """Fetch completeness rows for either a recent limit or fixed date range."""
     with get_connection() as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                WITH recent_dates AS (
+            if start_date is not None and end_date is not None:
+                cursor.execute(
+                    """
+                    WITH review_dates AS (
+                        SELECT
+                            generate_series(
+                                %s::DATE,
+                                %s::DATE,
+                                INTERVAL '1 day'
+                            )::DATE AS checkin_date
+                    )
                     SELECT
-                        generate_series(
-                            CURRENT_DATE - (%s::INTEGER - 1),
-                            CURRENT_DATE,
-                            INTERVAL '1 day'
-                        )::DATE AS checkin_date
+                        review_dates.checkin_date,
+                        COALESCE(dc.has_checkin, FALSE) AS has_checkin,
+                        COALESCE(dc.has_deep_work_entry, FALSE) AS has_deep_work_entry,
+                        COALESCE(dc.has_caffeine_entry, FALSE) AS has_caffeine_entry,
+                        COALESCE(dc.has_exercise_entry, FALSE) AS has_exercise_entry,
+                        COALESCE(dc.completed_sections, 0) AS completed_sections,
+                        COALESCE(dc.expected_sections, 4) AS expected_sections,
+                        COALESCE(dc.completeness_pct, 0.0) AS completeness_pct
+                    FROM review_dates
+                    LEFT JOIN daily_completeness_vw AS dc
+                        ON review_dates.checkin_date = dc.checkin_date
+                    ORDER BY review_dates.checkin_date
+                    """,
+                    (start_date, end_date),
                 )
-                SELECT
-                    recent_dates.checkin_date,
-                    COALESCE(dc.has_checkin, FALSE) AS has_checkin,
-                    COALESCE(dc.has_deep_work_entry, FALSE) AS has_deep_work_entry,
-                    COALESCE(dc.has_caffeine_entry, FALSE) AS has_caffeine_entry,
-                    COALESCE(dc.has_exercise_entry, FALSE) AS has_exercise_entry,
-                    COALESCE(dc.completed_sections, 0) AS completed_sections,
-                    COALESCE(dc.expected_sections, 4) AS expected_sections,
-                    COALESCE(dc.completeness_pct, 0.0) AS completeness_pct
-                FROM recent_dates
-                LEFT JOIN daily_completeness_vw AS dc
-                    ON recent_dates.checkin_date = dc.checkin_date
-                ORDER BY recent_dates.checkin_date DESC
-                """,
-                (limit,),
-            )
+            else:
+                cursor.execute(
+                    """
+                    WITH recent_dates AS (
+                        SELECT
+                            generate_series(
+                                CURRENT_DATE - (%s::INTEGER - 1),
+                                CURRENT_DATE,
+                                INTERVAL '1 day'
+                            )::DATE AS checkin_date
+                    )
+                    SELECT
+                        recent_dates.checkin_date,
+                        COALESCE(dc.has_checkin, FALSE) AS has_checkin,
+                        COALESCE(dc.has_deep_work_entry, FALSE) AS has_deep_work_entry,
+                        COALESCE(dc.has_caffeine_entry, FALSE) AS has_caffeine_entry,
+                        COALESCE(dc.has_exercise_entry, FALSE) AS has_exercise_entry,
+                        COALESCE(dc.completed_sections, 0) AS completed_sections,
+                        COALESCE(dc.expected_sections, 4) AS expected_sections,
+                        COALESCE(dc.completeness_pct, 0.0) AS completeness_pct
+                    FROM recent_dates
+                    LEFT JOIN daily_completeness_vw AS dc
+                        ON recent_dates.checkin_date = dc.checkin_date
+                    ORDER BY recent_dates.checkin_date DESC
+                    """,
+                    (limit,),
+                )
             rows = cursor.fetchall()
             columns = [column.name for column in cursor.description]
 
@@ -398,37 +457,71 @@ def load_recent_daily_completeness(limit: int = 14) -> pd.DataFrame:
     return completeness_df.sort_values("checkin_date").reset_index(drop=True)
 
 
-def load_analysis_daily_data() -> pd.DataFrame:
-    """Fetch analysis-ready current-day outcomes plus prior-day behavior inputs."""
+def load_analysis_daily_data(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> pd.DataFrame:
+    """Fetch analysis-ready outcomes and prior-day behavior inputs."""
     with get_connection() as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
-                    current_day.checkin_date,
-                    current_day.sleep_hours,
-                    current_day.sleep_quality,
-                    current_day.energy_rating,
-                    current_day.focus_rating,
-                    current_day.mood_rating,
-                    current_day.stress_rating,
-                    current_completeness.has_checkin,
-                    prior_day.deep_work_minutes AS prior_day_deep_work_minutes,
-                    prior_day.total_caffeine_mg AS prior_day_total_caffeine_mg,
-                    prior_day.total_exercise_minutes AS prior_day_total_exercise_minutes,
-                    prior_completeness.has_deep_work_entry AS prior_day_has_deep_work_entry,
-                    prior_completeness.has_caffeine_entry AS prior_day_has_caffeine_entry,
-                    prior_completeness.has_exercise_entry AS prior_day_has_exercise_entry
-                FROM daily_metrics_vw AS current_day
-                LEFT JOIN daily_completeness_vw AS current_completeness
-                    ON current_day.checkin_date = current_completeness.checkin_date
-                LEFT JOIN daily_metrics_vw AS prior_day
-                    ON prior_day.checkin_date = current_day.checkin_date - 1
-                LEFT JOIN daily_completeness_vw AS prior_completeness
-                    ON prior_completeness.checkin_date = current_day.checkin_date - 1
-                ORDER BY current_day.checkin_date
-                """
-            )
+            if start_date is not None and end_date is not None:
+                cursor.execute(
+                    """
+                    SELECT
+                        current_day.checkin_date,
+                        current_day.sleep_hours,
+                        current_day.sleep_quality,
+                        current_day.energy_rating,
+                        current_day.focus_rating,
+                        current_day.mood_rating,
+                        current_day.stress_rating,
+                        current_completeness.has_checkin,
+                        prior_day.deep_work_minutes AS prior_day_deep_work_minutes,
+                        prior_day.total_caffeine_mg AS prior_day_total_caffeine_mg,
+                        prior_day.total_exercise_minutes AS prior_day_total_exercise_minutes,
+                        prior_completeness.has_deep_work_entry AS prior_day_has_deep_work_entry,
+                        prior_completeness.has_caffeine_entry AS prior_day_has_caffeine_entry,
+                        prior_completeness.has_exercise_entry AS prior_day_has_exercise_entry
+                    FROM daily_metrics_vw AS current_day
+                    LEFT JOIN daily_completeness_vw AS current_completeness
+                        ON current_day.checkin_date = current_completeness.checkin_date
+                    LEFT JOIN daily_metrics_vw AS prior_day
+                        ON prior_day.checkin_date = current_day.checkin_date - 1
+                    LEFT JOIN daily_completeness_vw AS prior_completeness
+                        ON prior_completeness.checkin_date = current_day.checkin_date - 1
+                    WHERE current_day.checkin_date BETWEEN %s AND %s
+                    ORDER BY current_day.checkin_date
+                    """,
+                    (start_date, end_date),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT
+                        current_day.checkin_date,
+                        current_day.sleep_hours,
+                        current_day.sleep_quality,
+                        current_day.energy_rating,
+                        current_day.focus_rating,
+                        current_day.mood_rating,
+                        current_day.stress_rating,
+                        current_completeness.has_checkin,
+                        prior_day.deep_work_minutes AS prior_day_deep_work_minutes,
+                        prior_day.total_caffeine_mg AS prior_day_total_caffeine_mg,
+                        prior_day.total_exercise_minutes AS prior_day_total_exercise_minutes,
+                        prior_completeness.has_deep_work_entry AS prior_day_has_deep_work_entry,
+                        prior_completeness.has_caffeine_entry AS prior_day_has_caffeine_entry,
+                        prior_completeness.has_exercise_entry AS prior_day_has_exercise_entry
+                    FROM daily_metrics_vw AS current_day
+                    LEFT JOIN daily_completeness_vw AS current_completeness
+                        ON current_day.checkin_date = current_completeness.checkin_date
+                    LEFT JOIN daily_metrics_vw AS prior_day
+                        ON prior_day.checkin_date = current_day.checkin_date - 1
+                    LEFT JOIN daily_completeness_vw AS prior_completeness
+                        ON prior_completeness.checkin_date = current_day.checkin_date - 1
+                    ORDER BY current_day.checkin_date
+                    """
+                )
             rows = cursor.fetchall()
             columns = [column.name for column in cursor.description]
 
