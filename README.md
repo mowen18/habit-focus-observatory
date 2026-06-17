@@ -7,9 +7,8 @@ habit, energy, and focus tracking. It combines a Streamlit logging workflow,
 PostgreSQL tables, SQL analytics views, and lightweight review charts for sleep,
 deep work, caffeine, exercise, and daily self-ratings.
 
-This is an MVP portfolio project, not a production health, wellness, or medical
-application. It is designed to demonstrate data modeling and analytical workflow
-thinking, not to provide health advice.
+This is an MVP portfolio project designed to demonstrate data modeling and analytical workflow
+thinking.
 
 ## What this project demonstrates
 
