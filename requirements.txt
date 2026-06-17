@@ -6,3 +6,4 @@ altair
 notebook
 jupyterlab
 pytest
+dbt-postgres

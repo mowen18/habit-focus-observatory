@@ -1,0 +1,24 @@
+version: 2
+
+models:
+  - name: daily_metrics_vw
+    description: Daily analytics view combining check-ins with caffeine and exercise rollups for the Streamlit app.
+    columns:
+      - name: checkin_date
+        tests:
+          - not_null
+          - unique
+
+  - name: daily_completeness_vw
+    description: Daily workflow completeness view showing which habit logging sections have been completed.
+    columns:
+      - name: checkin_date
+        tests:
+          - not_null
+          - unique
+      - name: completed_sections
+        tests:
+          - not_null
+      - name: expected_sections
+        tests:
+          - not_null

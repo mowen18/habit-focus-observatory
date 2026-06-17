@@ -95,6 +95,20 @@ have explicitly logged `0` minutes of deep work or `0` mg of caffeine. That is
 different from a day where the form was never submitted and the value is still
 unknown.
 
+### dbt analytics models
+
+The original `sql/views.sql` workflow still exists as a fallback for now. After
+copying `profiles.yml.example` to `profiles.yml`, dbt can also build the
+analytics views:
+
+```bash
+DBT_PROFILES_DIR=. dbt run
+DBT_PROFILES_DIR=. dbt test
+```
+
+The dbt models recreate `daily_metrics_vw` and `daily_completeness_vw`, keeping
+the same view names used by the Streamlit app.
+
 ## Local setup
 
 From a fresh clone:
