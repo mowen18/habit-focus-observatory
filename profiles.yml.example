@@ -1,0 +1,13 @@
+# Copy this file to profiles.yml, or run dbt with DBT_PROFILES_DIR=. for local development.
+habit_focus_observatory:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      port: 5432
+      user: habit_user
+      password: habit_pw
+      dbname: habit_focus_db
+      schema: public
+      threads: 4

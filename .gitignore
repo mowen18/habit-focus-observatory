@@ -8,3 +8,8 @@ data/private/
 postgres_data/
 *.sqlite
 *.db
+profiles.yml
+target/
+dbt_packages/
+logs/
+.user.yml

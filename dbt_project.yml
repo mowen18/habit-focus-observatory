@@ -1,0 +1,10 @@
+name: habit_focus_observatory
+profile: habit_focus_observatory
+version: "1.0.0"
+config-version: 2
+
+model-paths: ["models"]
+
+models:
+  habit_focus_observatory:
+    +materialized: view
