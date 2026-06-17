@@ -110,6 +110,11 @@ DBT_PROFILES_DIR=. dbt test
 The dbt models recreate `daily_metrics_vw` and `daily_completeness_vw`, keeping
 the same view names used by the Streamlit app.
 
+The dbt lineage graph shows the analytics flow from the raw Postgres source
+tables, through staging models, into the final app-facing analytics views:
+
+![dbt lineage graph](images/dbt_lineage_graph.png)
+
 ## Local setup
 
 From a fresh clone:
