@@ -27,6 +27,7 @@ thinking, not to provide health advice.
 - PostgreSQL
 - Docker
 - SQL
+- dbt
 - pandas
 - Altair
 - psycopg
@@ -165,7 +166,7 @@ streamlit run app/streamlit_app.py
 
 - Apple Health or wearable import
 - Richer weekly summaries
-- dbt-style modeling
+- Additional dbt tests and documentation
 - More robust testing
 - Deployment option
 
