@@ -1,0 +1,70 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Tier 1: fast, no services ────────────────────────────────
+  unit-tests:
+    name: Unit tests (pandas, no DB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"   # match your local interpreter (your notebook ran 3.9.6)
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest tests/test_analytics.py tests/test_review_window.py -v
+
+  # ── Tier 2: needs Postgres + a running Streamlit app ─────────
+  e2e-tests:
+    name: End-to-end (Postgres + Streamlit + Playwright)
+    runs-on: ubuntu-latest
+    needs: unit-tests            # only runs if the fast tests pass
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: habit_focus_db
+          POSTGRES_USER: habit_user
+          POSTGRES_PASSWORD: habit_pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U habit_user -d habit_focus_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:                          # these are what src/db.py reads
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGDATABASE: habit_focus_db
+      PGUSER: habit_user
+      PGPASSWORD: habit_pw
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Apply schema and analytics views
+        run: |
+          psql -h localhost -U habit_user -d habit_focus_db -f sql/schema.sql
+          psql -h localhost -U habit_user -d habit_focus_db -f sql/views.sql
+        env:
+          PGPASSWORD: habit_pw
+
+      - name: Install Playwright + browser
+        run: |
+          pip install pytest-playwright
+          playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        run: pytest tests/e2e -v
