@@ -2,14 +2,10 @@
 
 ## Project overview
 
-Habit Focus Observatory is a local personal analytics app for habit, energy,
-and focus tracking. It combines Streamlit logging forms, PostgreSQL source
-tables, dbt analytics views, and review charts for sleep, deep work, caffeine,
-exercise, and daily self-ratings.
-
-The project focuses on relational modeling, missing-data handling, and
-app-facing analytics views that distinguish unlogged values from explicitly
-logged zeroes.
+Habit Focus Observatory is a local personal analytics app for logging and 
+tracking trends + habits across sleep/productivity/exercise. It combines 
+Streamlit logging forms, PostgreSQL source tables, dbt analytics views, and 
+review charts for sleep, deep work, caffeine, exercise, and daily self-ratings.
 
 ## What this project demonstrates
 
