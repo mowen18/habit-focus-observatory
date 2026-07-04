@@ -1,5 +1,7 @@
 # habit-focus-observatory
 
+[![CI](https://github.com/mowen18/habit-focus-observatory/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mowen18/habit-focus-observatory/actions/workflows/ci.yml)
+
 ## Project overview
 
 Habit Focus Observatory is a local personal analytics app for logging and 
