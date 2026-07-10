@@ -13,6 +13,7 @@ APP_PATH = "app/streamlit_app.py"
 HOST = "localhost"
 PORT = 8501
 BASE_URL = f"http://{HOST}:{PORT}"
+FRONTEND_MODULE_ERROR = "Failed to fetch dynamically imported module"
 
 
 def get_streamlit_number_input(page: Page, form: Locator, label: str) -> Locator:
@@ -21,6 +22,55 @@ def get_streamlit_number_input(page: Page, form: Locator, label: str) -> Locator
         has=page.get_by_text(label, exact=True)
     )
     return widget.get_by_role("spinbutton")
+
+
+def fail_on_frontend_module_errors(frontend_errors: Locator) -> None:
+    """Fail with the visible Streamlit frontend module errors, if any."""
+    error_messages = frontend_errors.all_inner_texts()
+    if not error_messages:
+        return
+
+    unique_error_messages = list(dict.fromkeys(error_messages))
+    pytest.fail(
+        "Streamlit frontend modules failed before the morning form rendered:\n"
+        + "\n".join(unique_error_messages),
+        pytrace=False,
+    )
+
+
+def wait_for_morning_form(page: Page) -> Locator:
+    """Wait for the app and fail clearly on Streamlit frontend module errors."""
+    expect(
+        page.get_by_role(
+            "heading",
+            name="Habit Focus Observatory",
+            exact=True,
+        )
+    ).to_be_visible()
+    expect(
+        page.get_by_role(
+            "heading",
+            name="1. Today Morning Check-in",
+            exact=True,
+        )
+    ).to_be_visible()
+
+    frontend_errors = page.get_by_role("alert").filter(
+        has_text=FRONTEND_MODULE_ERROR
+    )
+    fail_on_frontend_module_errors(frontend_errors)
+
+    morning_form = page.locator('[data-testid="stForm"]').filter(
+        has=page.get_by_text("Sleep hours", exact=True)
+    )
+    try:
+        expect(morning_form).to_be_visible()
+    except AssertionError:
+        fail_on_frontend_module_errors(frontend_errors)
+        raise
+
+    fail_on_frontend_module_errors(frontend_errors)
+    return morning_form
  
  
 def _port_open(host: str, port: int) -> bool:
@@ -73,25 +123,7 @@ def test_morning_checkin_saves_successfully(page: Page):
     """Filling and submitting the morning check-in shows a success message."""
     page.goto(BASE_URL)
 
-    expect(
-        page.get_by_role(
-            "heading",
-            name="Habit Focus Observatory",
-            exact=True,
-        )
-    ).to_be_visible()
-    expect(
-        page.get_by_role(
-            "heading",
-            name="1. Today Morning Check-in",
-            exact=True,
-        )
-    ).to_be_visible()
-
-    morning_form = page.locator('[data-testid="stForm"]').filter(
-        has=page.get_by_text("Sleep hours", exact=True)
-    )
-    expect(morning_form).to_be_visible()
+    morning_form = wait_for_morning_form(page)
 
     number_input_values = {
         "Sleep hours": "7.5",

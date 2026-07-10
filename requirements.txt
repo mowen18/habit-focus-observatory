@@ -1,5 +1,6 @@
 streamlit
 pandas
+pyarrow==24.0.0
 psycopg[binary]
 python-dotenv
 altair
