@@ -8,6 +8,10 @@ models:
         tests:
           - not_null
           - unique
+      - name: prior_day_sleep_hours
+        description: Sleep hours from the immediately preceding calendar date; null when that date has no check-in or no sleep value.
+      - name: focus_7d_avg
+        description: Average of non-null focus ratings from the current calendar date and previous six calendar days.
 
   - name: daily_completeness_vw
     description: Daily workflow completeness view showing which habit logging sections have been completed.

@@ -42,13 +42,15 @@ SELECT
         WHEN dc.exercise_logged THEN COALESCE(e.high_intensity_flag, 0)
         ELSE NULL
     END AS high_intensity_flag,
-    LAG(dc.sleep_hours) OVER (ORDER BY dc.checkin_date) AS prior_day_sleep_hours,
+    prior_dc.sleep_hours AS prior_day_sleep_hours,
     AVG(dc.focus_rating) OVER (
-        ORDER BY dc.checkin_date
-        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+        ORDER BY dc.checkin_date::TIMESTAMP
+        RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW
     ) AS focus_7d_avg
 FROM {{ ref('stg_daily_checkin') }} AS dc
 LEFT JOIN daily_caffeine AS c
     ON dc.checkin_date = c.checkin_date
 LEFT JOIN daily_exercise AS e
     ON dc.checkin_date = e.checkin_date
+LEFT JOIN {{ ref('stg_daily_checkin') }} AS prior_dc
+    ON prior_dc.checkin_date = dc.checkin_date - 1

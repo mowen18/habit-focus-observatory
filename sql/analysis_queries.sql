@@ -39,11 +39,14 @@ ORDER BY caffeine_after_2pm;
 -- Shows next-day focus following days that did or did not include high-intensity exercise.
 WITH next_day_focus AS (
     SELECT
-        checkin_date,
-        high_intensity_flag,
-        focus_rating,
-        LEAD(focus_rating) OVER (ORDER BY checkin_date) AS next_day_focus_rating
-    FROM daily_metrics_vw
+        behavior_day.checkin_date,
+        behavior_day.high_intensity_flag,
+        behavior_day.focus_rating,
+        next_day.focus_rating AS next_day_focus_rating
+    FROM daily_metrics_vw AS behavior_day
+    LEFT JOIN daily_metrics_vw AS next_day
+        ON next_day.checkin_date = behavior_day.checkin_date + 1
+    WHERE behavior_day.high_intensity_flag IS NOT NULL
 )
 SELECT
     high_intensity_flag,

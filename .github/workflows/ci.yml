@@ -21,6 +21,47 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pytest tests/test_analytics.py tests/test_review_window.py -v
 
+  # ── Tier 2: validates the primary dbt analytics path ───────────────────
+  dbt-tests:
+    name: dbt build (Postgres)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: habit_focus_db
+          POSTGRES_USER: habit_user
+          POSTGRES_PASSWORD: habit_pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U habit_user -d habit_focus_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGDATABASE: habit_focus_db
+      PGUSER: habit_user
+      PGPASSWORD: habit_pw
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Apply source schema
+        run: psql -v ON_ERROR_STOP=1 -f sql/schema.sql
+
+      - name: Build and test dbt project
+        run: |
+          cp profiles.yml.example profiles.yml
+          DBT_PROFILES_DIR=. dbt build
+
   # ── Tier 2: needs Postgres + a running Streamlit app ─────────
   e2e-tests:
     name: End-to-end (Postgres + Streamlit + Playwright)
@@ -56,10 +97,13 @@ jobs:
 
       - name: Apply schema and analytics views
         run: |
-          psql -h localhost -U habit_user -d habit_focus_db -f sql/schema.sql
-          psql -h localhost -U habit_user -d habit_focus_db -f sql/views.sql
+          psql -v ON_ERROR_STOP=1 -h localhost -U habit_user -d habit_focus_db -f sql/schema.sql
+          psql -v ON_ERROR_STOP=1 -h localhost -U habit_user -d habit_focus_db -f sql/views.sql
         env:
           PGPASSWORD: habit_pw
+
+      - name: Run fallback SQL regression tests
+        run: pytest tests/integration/test_temporal_sql.py -v
 
       - name: Install Playwright + browser
         run: |

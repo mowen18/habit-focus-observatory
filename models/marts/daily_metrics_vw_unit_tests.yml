@@ -1,0 +1,88 @@
+version: 2
+
+unit_tests:
+  - name: prior_day_sleep_is_null_across_gap
+    description: A prior stored row is not treated as the prior calendar day.
+    model: daily_metrics_vw
+    given:
+      - input: ref('stg_daily_checkin')
+        rows:
+          - checkin_date: '2026-01-08'
+            sleep_hours: 7.0
+            deep_work_logged: false
+            caffeine_logged: false
+            exercise_logged: false
+          - checkin_date: '2026-01-10'
+            deep_work_logged: false
+            caffeine_logged: false
+            exercise_logged: false
+      - input: ref('stg_caffeine_log')
+        rows: []
+      - input: ref('stg_exercise_log')
+        rows: []
+    expect:
+      rows:
+        - checkin_date: '2026-01-08'
+          prior_day_sleep_hours: null
+        - checkin_date: '2026-01-10'
+          prior_day_sleep_hours: null
+
+  - name: prior_day_sleep_uses_exact_previous_date
+    description: Prior-day sleep comes from the immediately preceding calendar date.
+    model: daily_metrics_vw
+    given:
+      - input: ref('stg_daily_checkin')
+        rows:
+          - checkin_date: '2026-01-09'
+            sleep_hours: 7.5
+            deep_work_logged: false
+            caffeine_logged: false
+            exercise_logged: false
+          - checkin_date: '2026-01-10'
+            deep_work_logged: false
+            caffeine_logged: false
+            exercise_logged: false
+      - input: ref('stg_caffeine_log')
+        rows: []
+      - input: ref('stg_exercise_log')
+        rows: []
+    expect:
+      rows:
+        - checkin_date: '2026-01-09'
+          prior_day_sleep_hours: null
+        - checkin_date: '2026-01-10'
+          prior_day_sleep_hours: 7.5
+
+  - name: focus_7d_avg_uses_calendar_range
+    description: The rolling focus average excludes stored rows older than six calendar days.
+    model: daily_metrics_vw
+    given:
+      - input: ref('stg_daily_checkin')
+        rows:
+          - checkin_date: '2026-01-01'
+            focus_rating: 4
+            deep_work_logged: false
+            caffeine_logged: false
+            exercise_logged: false
+          - checkin_date: '2026-01-08'
+            focus_rating: 8
+            deep_work_logged: false
+            caffeine_logged: false
+            exercise_logged: false
+          - checkin_date: '2026-01-10'
+            focus_rating: 10
+            deep_work_logged: false
+            caffeine_logged: false
+            exercise_logged: false
+      - input: ref('stg_caffeine_log')
+        rows: []
+      - input: ref('stg_exercise_log')
+        rows: []
+    expect:
+      rows:
+        - checkin_date: '2026-01-01'
+          focus_7d_avg: '4.0000000000000000'
+        - checkin_date: '2026-01-08'
+          focus_7d_avg: '8.0000000000000000'
+        - checkin_date: '2026-01-10'
+          focus_7d_avg: '9.0000000000000000'
