@@ -6,13 +6,21 @@ import time
 from datetime import date
  
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
  
  
 APP_PATH = "app/streamlit_app.py"
 HOST = "localhost"
 PORT = 8501
 BASE_URL = f"http://{HOST}:{PORT}"
+
+
+def get_streamlit_number_input(page: Page, form: Locator, label: str) -> Locator:
+    """Return one number input from its labeled Streamlit widget container."""
+    widget = form.locator('[data-testid="stNumberInput"]').filter(
+        has=page.get_by_text(label, exact=True)
+    )
+    return widget.get_by_role("spinbutton")
  
  
 def _port_open(host: str, port: int) -> bool:
@@ -64,24 +72,57 @@ def test_app_loads_with_all_form_sections(page: Page):
 def test_morning_checkin_saves_successfully(page: Page):
     """Filling and submitting the morning check-in shows a success message."""
     page.goto(BASE_URL)
- 
-    # Streamlit exposes each widget's label text as the input's aria-label,
-    # so get_by_label targets them. The morning form's "Check-in date"
-    # defaults to today, so we don't need to touch it here.
-    page.get_by_label("Sleep hours").fill("7.5")
-    page.get_by_label("Sleep quality (1-10)").fill("8")
-    page.get_by_label("Energy rating (1-10)").fill("7")
-    page.get_by_label("Focus rating (1-10)").fill("8")
-    page.get_by_label("Mood rating (1-10)").fill("7")
-    page.get_by_label("Stress rating (1-10)").fill("4")
-    page.get_by_label("Notes").fill("Playwright smoke test entry.")
- 
-    page.get_by_role("button", name="Save today's morning check-in").click()
- 
-    # st.form_submit_button triggers a rerun; expect() auto-waits for the
-    # success alert that save_morning_checkin produces on the happy path.
-    today = date.today().isoformat()
+
     expect(
-        page.get_by_text(f"Saved today's morning check-in for {today}.")
-    ).to_be_visible(timeout=15_000)
- 
+        page.get_by_role(
+            "heading",
+            name="Habit Focus Observatory",
+            exact=True,
+        )
+    ).to_be_visible()
+    expect(
+        page.get_by_role(
+            "heading",
+            name="1. Today Morning Check-in",
+            exact=True,
+        )
+    ).to_be_visible()
+
+    morning_form = page.locator('[data-testid="stForm"]').filter(
+        has=page.get_by_text("Sleep hours", exact=True)
+    )
+    expect(morning_form).to_be_visible()
+
+    number_input_values = {
+        "Sleep hours": "7.5",
+        "Sleep quality (1-10)": "8",
+        "Energy rating (1-10)": "7",
+        "Focus rating (1-10)": "8",
+        "Mood rating (1-10)": "7",
+        "Stress rating (1-10)": "4",
+    }
+    for label, value in number_input_values.items():
+        get_streamlit_number_input(page, morning_form, label).fill(value)
+
+    notes = (
+        morning_form.locator('[data-testid="stTextArea"]')
+        .filter(has=page.get_by_text("Notes", exact=True))
+        .get_by_role("textbox")
+    )
+    notes.fill("Playwright smoke test entry.")
+
+    submit_button = morning_form.locator(
+        '[data-testid="stFormSubmitButton"]'
+    ).get_by_role(
+        "button",
+        name="Save today's morning check-in",
+        exact=True,
+    )
+    submit_button.click()
+
+    today = date.today().isoformat()
+    success_message = f"Saved today's morning check-in for {today}."
+    success_alert = page.locator('[data-testid="stAlert"]').filter(
+        has=page.get_by_text(success_message, exact=True)
+    )
+    expect(success_alert).to_be_visible(timeout=15_000)
